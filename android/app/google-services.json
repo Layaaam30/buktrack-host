@@ -1,0 +1,119 @@
+{
+  "project_info": {
+    "project_number": "921610557621",
+    "firebase_url": "https://buktrack-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "buktrack",
+    "storage_bucket": "buktrack.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921610557621:android:49d980bd1cf972bd1706fc",
+        "android_client_info": {
+          "package_name": "com.buktrack.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUumrOBF7SERexLv0euN5ckC9k7WYN3XQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "921610557621-gsoukrufp7vm9b4r8e45qa0cn9p7n3lf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.buktrack"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921610557621:android:d438edaf39e4eda61706fc",
+        "android_client_info": {
+          "package_name": "com.buktrack_here.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUumrOBF7SERexLv0euN5ckC9k7WYN3XQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "921610557621-gsoukrufp7vm9b4r8e45qa0cn9p7n3lf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.buktrack"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:921610557621:android:85367e739651be2d1706fc",
+        "android_client_info": {
+          "package_name": "com.example.buktrack_web"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDUumrOBF7SERexLv0euN5ckC9k7WYN3XQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "921610557621-fvnvl6ul95pmo73vcbf6t0lqs13pukbi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "921610557621-gsoukrufp7vm9b4r8e45qa0cn9p7n3lf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.buktrack"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
