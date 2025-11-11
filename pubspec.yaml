@@ -15,35 +15,40 @@ dependencies:
   # State Management
   provider: ^6.1.1
 
-  # Local Storage
-  shared_preferences: ^2.2.2
-
   # Firebase
-  firebase_core: ^2.24.0
-  # firebase_auth: ^4.15.0
-  cloud_firestore: ^4.13.0
+  firebase_core: ^4.2.1
+  cloud_firestore: ^6.1.0
+
+  firebase_auth: ^6.1.2
 
   # Routing
-  go_router: ^12.1.3
+  go_router: ^17.0.0
 
   # UI Components
   google_fonts: ^6.1.0
-  flutter_svg: ^2.0.9
-
+  flutter_svg: ^2.2.2
   tabler_icons: ^2.5.0+1
 
   # Utilities
-  intl: ^0.18.1
+  intl: ^0.20.2
   crypto: ^3.0.3
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.3.1
 
   # HTTP & API
   http: ^1.1.2
+  bcrypt: ^1.1.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/images/logos/light-logo.svg
+    - assets/images/logos/dark-logo.svg
+    - assets/images/logos/favicon.png

@@ -4,8 +4,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/navigation_provider.dart';
+import '../../../features/auth/auth_provider.dart';
 import 'sidebar_link.dart';
 import 'package:tabler_icons/tabler_icons.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class Sidebar extends StatelessWidget {
   final bool isExpanded;
@@ -60,7 +62,7 @@ class Sidebar extends StatelessWidget {
             Expanded(child: _buildNavigation(theme, isDark, context)),
 
             // User Section
-            _buildUserSection(theme, isDark),
+            _buildUserSection(theme, isDark, context),
           ],
         ),
       ),
@@ -120,23 +122,10 @@ class Sidebar extends StatelessWidget {
   Widget _buildExpandedLogo(bool isDark) {
     return Row(
       children: [
-        Text(
-          'BUK',
-          style: TextStyle(
-            fontSize: AppSizes.fontSize2xl,
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
-        ),
-        Text(
-          'TRACK',
-          style: TextStyle(
-            fontSize: AppSizes.fontSize2xl,
-            fontWeight: FontWeight.bold,
-            color: isDark
-                ? AppColors.textPrimaryDark
-                : AppColors.textPrimaryLight,
-          ),
+        SvgPicture.asset(
+          isDark
+              ? 'assets/images/logos/light-logo.svg'
+              : 'assets/images/logos/dark-logo.svg',
         ),
       ],
     );
@@ -435,86 +424,127 @@ class Sidebar extends StatelessWidget {
     );
   }
 
-  Widget _buildUserSection(ThemeData theme, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.sm),
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-            width: 1,
+  Widget _buildUserSection(ThemeData theme, bool isDark, BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final adminName = authProvider.adminName ?? 'Admin User';
+        final adminEmail = authProvider.adminEmail ?? 'admin@example.com';
+        final firstLetter = adminName.isNotEmpty
+            ? adminName[0].toUpperCase()
+            : 'A';
+
+        return Container(
+          padding: const EdgeInsets.all(AppSizes.sm),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                width: 1,
+              ),
+            ),
           ),
+          child: isExpanded
+              ? _buildExpandedUserSection(
+                  isDark,
+                  context,
+                  authProvider,
+                  adminName,
+                  adminEmail,
+                  firstLetter,
+                )
+              : _buildCollapsedUserSection(
+                  isDark,
+                  context,
+                  authProvider,
+                  firstLetter,
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildExpandedUserSection(
+    bool isDark,
+    BuildContext context,
+    AuthProvider authProvider,
+    String adminName,
+    String adminEmail,
+    String firstLetter,
+  ) {
+    return InkWell(
+      onTap: () {
+        _showUserMenu(context, isDark, authProvider);
+      },
+      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+      child: Container(
+        padding: const EdgeInsets.all(AppSizes.sm),
+        child: Row(
+          children: [
+            // Avatar with online indicator
+            _buildUserAvatar(isDark, firstLetter),
+            const SizedBox(width: AppSizes.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    adminName,
+                    style: TextStyle(
+                      fontSize: AppSizes.fontSizeSm,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    adminEmail,
+                    style: TextStyle(
+                      fontSize: AppSizes.fontSizeXs,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: () => _handleLogout(context, authProvider),
+              icon: const Icon(TablerIcons.logout, size: 18),
+              style: IconButton.styleFrom(
+                foregroundColor: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+              tooltip: 'Logout',
+            ),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCollapsedUserSection(
+    bool isDark,
+    BuildContext context,
+    AuthProvider authProvider,
+    String firstLetter,
+  ) {
+    return Center(
       child: InkWell(
         onTap: () {
-          // TODO: Show user menu
+          _showUserMenu(context, isDark, authProvider);
         },
-        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-        child: Container(
-          padding: const EdgeInsets.all(AppSizes.sm),
-          child: isExpanded
-              ? _buildExpandedUserSection(isDark)
-              : _buildCollapsedUserSection(isDark),
-        ),
+        borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+        child: _buildUserAvatar(isDark, firstLetter),
       ),
     );
   }
 
-  Widget _buildExpandedUserSection(bool isDark) {
-    return Row(
-      children: [
-        // Avatar with online indicator
-        _buildUserAvatar(isDark),
-        const SizedBox(width: AppSizes.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Admin User',
-                style: TextStyle(
-                  fontSize: AppSizes.fontSizeSm,
-                  fontWeight: FontWeight.w600,
-                  color: isDark
-                      ? AppColors.textPrimaryDark
-                      : AppColors.textPrimaryLight,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                'Company Name',
-                style: TextStyle(
-                  fontSize: AppSizes.fontSizeXs,
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            // TODO: Implement logout
-          },
-          icon: const Icon(TablerIcons.logout, size: 18),
-          style: IconButton.styleFrom(
-            foregroundColor: isDark
-                ? AppColors.textSecondaryDark
-                : AppColors.textSecondaryLight,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCollapsedUserSection(bool isDark) {
-    return Center(child: _buildUserAvatar(isDark));
-  }
-
-  Widget _buildUserAvatar(bool isDark) {
+  Widget _buildUserAvatar(bool isDark, String firstLetter) {
     return Stack(
       children: [
         Container(
@@ -526,7 +556,7 @@ class Sidebar extends StatelessWidget {
           ),
           child: Center(
             child: Text(
-              'A',
+              firstLetter,
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w600,
@@ -554,5 +584,120 @@ class Sidebar extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _showUserMenu(
+    BuildContext context,
+    bool isDark,
+    AuthProvider authProvider,
+  ) {
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final RelativeRect position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
+          value: 'profile',
+          child: Row(
+            children: [
+              Icon(
+                TablerIcons.user,
+                size: 16,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+              const SizedBox(width: AppSizes.sm),
+              Text('Profile', style: TextStyle(fontSize: AppSizes.fontSizeSm)),
+            ],
+          ),
+        ),
+        PopupMenuItem<String>(
+          value: 'settings',
+          child: Row(
+            children: [
+              Icon(
+                TablerIcons.settings,
+                size: 16,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+              const SizedBox(width: AppSizes.sm),
+              Text('Settings', style: TextStyle(fontSize: AppSizes.fontSizeSm)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem<String>(
+          value: 'logout',
+          child: Row(
+            children: [
+              const Icon(TablerIcons.logout, size: 16, color: AppColors.error),
+              const SizedBox(width: AppSizes.sm),
+              Text(
+                'Logout',
+                style: TextStyle(
+                  fontSize: AppSizes.fontSizeSm,
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'profile') {
+        // TODO: Navigate to profile
+      } else if (value == 'settings') {
+        // TODO: Navigate to settings
+      } else if (value == 'logout') {
+        _handleLogout(context, authProvider);
+      }
+    });
+  }
+
+  Future<void> _handleLogout(
+    BuildContext context,
+    AuthProvider authProvider,
+  ) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      // Perform logout
+      await authProvider.signOut();
+      // Navigation will be handled automatically by app.dart watching auth state
+    }
   }
 }
