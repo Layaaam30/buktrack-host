@@ -7,10 +7,11 @@ class AppColors {
   AppColors._();
 
   // ========== Primary Colors ==========
-  static const Color primary = Color(0xFFf97316); // orange-500
-  static const Color primaryLight = Color(0xFFfb923c); // orange-400
-  static const Color primaryDark = Color(0xFFea580c); // orange-600
-  static const Color primaryLighter = Color(0xFFffedd5); // orange-100
+  static const Color primary = Color(0xFFf97316);
+  static const Color primaryLight = Color(0xFFfb923c);
+  static const Color primaryDark = Color(0xFFea580c);
+  static const Color primaryLighter = Color(0xFFffedd5);
+  static const Color violet = Color(0xFF7A07CD);
 
   // ========== Background Colors ==========
   // Light mode
@@ -91,7 +92,13 @@ class AppColors {
   );
 
   static const LinearGradient orangeGradient = LinearGradient(
-    colors: [Color(0xFFFB923C), Color(0xFFEA580C)], // orange-400 to orange-600
+    colors: [Color(0xFFFB923C), Color(0xFFEA580C)],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+
+  static const LinearGradient violetGradient = LinearGradient(
+    colors: [Color(0xFFad47ff), Color(0xFF9911fb)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

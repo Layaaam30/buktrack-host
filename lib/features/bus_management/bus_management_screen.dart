@@ -16,15 +16,36 @@ class BusManagementScreen extends StatefulWidget {
   State<BusManagementScreen> createState() => _BusManagementScreenState();
 }
 
-class _BusManagementScreenState extends State<BusManagementScreen> {
+// class _BusManagementScreenState extends State<BusManagementScreen> {
+class _BusManagementScreenState extends State<BusManagementScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _bounceController;
+  late Animation<double> _bounceAnimation;
+
   @override
   void initState() {
     super.initState();
 
-    // Initialize bus provider after frame is built
+    _bounceController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _bounceAnimation = Tween<double>(begin: 0, end: -10).animate(
+      CurvedAnimation(parent: _bounceController, curve: Curves.easeInOut),
+    );
+
+    _bounceController.repeat(reverse: true);
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeBusManagement();
     });
+  }
+
+  @override
+  void dispose() {
+    _bounceController.dispose();
+    super.dispose();
   }
 
   void _initializeBusManagement() {
@@ -266,31 +287,7 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
                         children: [
                           Row(
                             children: [
-                              Container(
-                                width: 64,
-                                height: 64,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(
-                                    AppSizes.radiusXl,
-                                  ),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.2),
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  TablerIcons.bus,
-                                  color: Colors.white,
-                                  size: 32,
-                                ),
-                              ),
+                              _buildAnimatedBusIcon(),
                               const SizedBox(width: AppSizes.lg),
                               const Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,6 +364,34 @@ class _BusManagementScreenState extends State<BusManagementScreen> {
         ),
         elevation: 0,
       ),
+    );
+  }
+
+  Widget _buildAnimatedBusIcon() {
+    return AnimatedBuilder(
+      animation: _bounceAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _bounceAnimation.value),
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(TablerIcons.bus, color: Colors.white, size: 32),
+          ),
+        );
+      },
     );
   }
 
