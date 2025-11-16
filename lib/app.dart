@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
+import 'features/auth/auth_provider.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/bus_management/bus_management_screen.dart';
 import 'features/account_management/account_management_screen.dart';
 import 'features/route_management/route_management_screen.dart';
+import 'features/activity_logs/activity_logs_screen.dart';
 import 'shared/widgets/layouts/app_shell.dart';
 import 'providers/theme_provider.dart';
-import 'features/auth/auth_provider.dart';
 
 class BukTrackApp extends StatelessWidget {
   const BukTrackApp({super.key});
@@ -34,26 +35,22 @@ class BukTrackApp extends StatelessWidget {
                 return const LoginScreen();
               }
 
-              // Show dashboard if authenticated
               return AppShell(
                 routes: {
                   '/dashboard': const DashboardScreen(),
                   '/account-management': const AccountManagementScreen(),
                   '/bus-management': const BusManagementScreen(),
                   '/route-management': const RouteManagementScreen(),
-                  // TODO: Add more routes as screens are created
-                  // '/activity-logs': const ActivityLogsScreen(),
-                  // '/settings': const SettingsScreen(),
+                  '/activity-logs': const ActivityLogsScreen(),
                 },
               );
             },
           ),
 
-          // Builder for responsive handling
           builder: (context, child) {
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
-                textScaleFactor: 1.0, // Prevent text scaling
+                textScaleFactor: 1.0,
               ),
               child: child!,
             );

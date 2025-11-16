@@ -314,19 +314,19 @@ class Sidebar extends StatelessWidget {
                   ),
                 ),
 
-              const SizedBox(height: AppSizes.sm),
+              // const SizedBox(height: AppSizes.sm),
 
-              SidebarLink(
-                icon: TablerIcons.settings,
-                label: 'Settings',
-                isExpanded: isExpanded,
-                isActive: navigationProvider.isActive('/settings'),
-                onTap: () {
-                  navigationProvider.navigateTo('/settings');
-                  if (isMobileOpen) onClose();
-                  // TODO: Implement settings screen
-                },
-              ),
+              // // SidebarLink(
+              // //   icon: TablerIcons.settings,
+              // //   label: 'Settings',
+              // //   isExpanded: isExpanded,
+              // //   isActive: navigationProvider.isActive('/settings'),
+              // //   onTap: () {
+              // //     navigationProvider.navigateTo('/settings');
+              // //     if (isMobileOpen) onClose();
+              // //     // TODO: Implement settings screen
+              // //   },
+              // // ),
 
               // Dark Mode Toggle
               const SizedBox(height: AppSizes.lg),

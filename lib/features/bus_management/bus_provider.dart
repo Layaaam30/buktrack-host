@@ -3,25 +3,20 @@ import 'package:flutter/material.dart';
 import 'bus_model.dart';
 import 'bus_service.dart';
 
-/// Optimized Bus Provider with real-time streaming
+/// Optimized Bus Provider with timely streaming
 class BusProvider with ChangeNotifier {
   final BusService _busService = BusService();
 
-  // State
   List<Bus> _buses = [];
   bool _isLoading = false;
   String? _error;
   String _currentCompanyId = '';
-
-  // Stream subscription for real-time updates
   StreamSubscription<List<Bus>>? _busesSubscription;
 
-  // Filters
   String _selectedStatus = 'All Status';
   String _selectedRoute = 'All Routes';
   String _searchQuery = '';
 
-  // Getters
   List<Bus> get buses => _buses;
   bool get isLoading => _isLoading;
   String? get error => _error;
@@ -36,10 +31,9 @@ class BusProvider with ChangeNotifier {
     super.dispose();
   }
 
-  /// Get filtered buses based on current filters (optimized client-side)
+  /// get filtered buses based on current filters
   List<Bus> get filteredBuses {
     return _buses.where((bus) {
-      // Status filter
       if (_selectedStatus != 'All Status') {
         if (bus.status.toLowerCase() !=
             _selectedStatus.toLowerCase().replaceAll(' ', '')) {
@@ -47,12 +41,10 @@ class BusProvider with ChangeNotifier {
         }
       }
 
-      // Route filter
       if (_selectedRoute != 'All Routes' && bus.routeName != _selectedRoute) {
         return false;
       }
 
-      // Search query
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         return bus.plateNumber.toLowerCase().contains(query) ||
@@ -64,7 +56,7 @@ class BusProvider with ChangeNotifier {
     }).toList();
   }
 
-  /// Get bus statistics (computed from cached data)
+  /// Get bus statistics
   Map<String, int> get stats {
     return {
       'total': _buses.length,
@@ -76,22 +68,16 @@ class BusProvider with ChangeNotifier {
     };
   }
 
-  /// Set current company ID and start listening to updates
+  /// Set current company ID and start check updates
   void setCompanyId(String companyId) {
-    if (_currentCompanyId == companyId) return; // Avoid redundant calls
-
+    if (_currentCompanyId == companyId) return;
     _currentCompanyId = companyId;
-
-    // Cancel previous subscription
     _busesSubscription?.cancel();
-
-    // Start new real-time subscription
     _startRealtimeListener();
-
     notifyListeners();
   }
 
-  /// Start real-time listener for bus updates
+  /// checks for bus upadtes
   void _startRealtimeListener() {
     if (_currentCompanyId.isEmpty) return;
 
@@ -116,25 +102,21 @@ class BusProvider with ChangeNotifier {
         );
   }
 
-  /// Set status filter
   void setStatusFilter(String status) {
     _selectedStatus = status;
     notifyListeners();
   }
 
-  /// Set route filter
   void setRouteFilter(String route) {
     _selectedRoute = route;
     notifyListeners();
   }
 
-  /// Set search query
   void setSearchQuery(String query) {
     _searchQuery = query;
     notifyListeners();
   }
 
-  /// Clear all filters
   void clearFilters() {
     _selectedStatus = 'All Status';
     _selectedRoute = 'All Routes';
@@ -142,7 +124,6 @@ class BusProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Manual refresh (force fetch from server)
   Future<void> loadBuses() async {
     if (_currentCompanyId.isEmpty) {
       _error = 'Company ID not set';
@@ -165,7 +146,10 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Create a new bus
+
+
+// ========== IMPLMEENTS CRUD OPERATIONS FOR BUS ==========
+
   Future<String?> createBus(Bus bus) async {
     _isLoading = true;
     _error = null;
@@ -173,8 +157,6 @@ class BusProvider with ChangeNotifier {
 
     try {
       final busId = await _busService.createBus(bus);
-
-      // Real-time listener will automatically update the list
       _isLoading = false;
       notifyListeners();
       return busId;
@@ -186,7 +168,6 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Update a bus
   Future<bool> updateBus(String busId, Bus bus) async {
     _isLoading = true;
     _error = null;
@@ -194,8 +175,6 @@ class BusProvider with ChangeNotifier {
 
     try {
       await _busService.updateBus(busId, bus);
-
-      // Real-time listener will automatically update the list
       _isLoading = false;
       notifyListeners();
       return true;
@@ -207,7 +186,6 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Delete a bus
   Future<bool> deleteBus(String busId) async {
     _isLoading = true;
     _error = null;
@@ -215,8 +193,6 @@ class BusProvider with ChangeNotifier {
 
     try {
       await _busService.deleteBus(busId);
-
-      // Real-time listener will automatically update the list
       _isLoading = false;
       notifyListeners();
       return true;
@@ -228,7 +204,7 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Update bus status (optimized - only updates one field)
+  /// Update bus status 
   Future<bool> updateBusStatus(String busId, String status) async {
     try {
       await _busService.updateBusStatus(busId, status);
