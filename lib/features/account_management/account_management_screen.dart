@@ -243,37 +243,188 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
       'unavailable',
     ];
 
+    String current = account.availabilityStatus;
+
     String? selected = await showDialog<String>(
       context: context,
+      barrierDismissible: true,
       builder: (context) {
         final theme = Theme.of(context);
         final isDark = theme.brightness == Brightness.dark;
 
-        return AlertDialog(
-          backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-          title: Text(
-            'Update Availability',
-            style: TextStyle(
-              color: isDark
-                  ? AppColors.textPrimaryDark
-                  : AppColors.textPrimaryLight,
-            ),
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
           ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: availabilityOptions.map((status) {
-              return ListTile(
-                title: Text(
-                  _formatAvailability(status),
-                  style: TextStyle(
-                    color: isDark
-                        ? AppColors.textPrimaryDark
-                        : AppColors.textPrimaryLight,
-                  ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Update Availability - ${account.name}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: const Color(0xFFFFA94D),
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Color(0xFFFFA94D),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // Body
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Availability Status *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.borderDark
+                                    : const Color(0xFFD1D5DB),
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: current,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => current = value);
+                                },
+                                items: availabilityOptions.map((status) {
+                                  return DropdownMenuItem<String>(
+                                    value: status,
+                                    child: Text(_formatAvailability(status)),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Note: "In Transit" status is automatically set when assigned to a bus',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.textTertiaryDark
+                                  : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+                    const Divider(height: 1),
+
+                    // Footer buttons
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: isDark
+                                    ? AppColors.borderDark
+                                    : const Color(0xFFD1D5DB),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFad47ff), Color(0xFF9911fb)],
+                              ),
+                            ),
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(current),
+                              icon: const Icon(
+                                TablerIcons.calendar_time,
+                                color: Colors.white,
+                              ),
+                              label: const Text('Update Availability'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                onTap: () => Navigator.of(context).pop(status),
               );
-            }).toList(),
+            },
           ),
         );
       },
@@ -1002,6 +1153,21 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
     );
   }
 
+  Widget _buildHeaderCell(String label, bool isDark, {required int flex}) {
+    const cellHPad = 12.0;
+
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: cellHPad),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _buildHeaderLabel(label, isDark),
+        ),
+      ),
+    );
+  }
+
   Widget _buildAccountsTable(
     bool isDark,
     bool isMobile,
@@ -1039,24 +1205,26 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(flex: 3, child: _buildHeaderLabel('NAME', isDark)),
-                Expanded(flex: 2, child: _buildHeaderLabel('USERNAME', isDark)),
-                Expanded(flex: 2, child: _buildHeaderLabel('PHONE', isDark)),
-                Expanded(flex: 2, child: _buildHeaderLabel('ROLE', isDark)),
-                Expanded(
-                  flex: 2,
-                  child: _buildHeaderLabel('AVAILABILITY', isDark),
+                _buildHeaderCell('NAME', isDark, flex: 2),
+                _buildHeaderCell('', isDark, flex: 1),
+                _buildHeaderCell('USERNAME', isDark, flex: 2),
+                _buildHeaderCell('PHONE', isDark, flex: 2),
+                _buildHeaderCell('ROLE', isDark, flex: 2),
+                _buildHeaderCell('AVAILABILITY', isDark, flex: 2),
+                _buildHeaderCell('ASSIGNED BUS', isDark, flex: 2),
+                SizedBox(
+                  width: 56,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildHeaderLabel('ACTION', isDark),
+                  ),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: _buildHeaderLabel('ASSIGNED BUS', isDark),
-                ),
-                SizedBox(width: 80, child: _buildHeaderLabel('ACTION', isDark)),
               ],
             ),
           ),
-          // Table Body
+
           ...accountProvider.filteredAccounts.asMap().entries.map((entry) {
             return _buildTableRow(
               entry.value,
@@ -1082,6 +1250,18 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
   }
 
   Widget _buildTableRow(Account account, bool isDark, bool isLast) {
+    const cellHPad = 12.0;
+
+    Widget cell({required int flex, required Widget child}) {
+      return Expanded(
+        flex: flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: cellHPad),
+          child: Align(alignment: Alignment.centerLeft, child: child),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSizes.xl,
@@ -1099,9 +1279,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
             : null,
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Name with Avatar
-          Expanded(
+          // NAME
+          cell(
             flex: 3,
             child: Row(
               children: [
@@ -1109,12 +1291,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFf3e8ff),
+                    color: const Color(0xFFF3E8FF),
                     borderRadius: BorderRadius.circular(AppSizes.radiusFull),
                   ),
                   child: const Icon(
                     Icons.person_outline,
-                    color: Color(0xFF9333ea),
+                    color: Color(0xFF9333EA),
                     size: 20,
                   ),
                 ),
@@ -1122,9 +1304,11 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         account.name,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -1142,7 +1326,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
                           fontSize: 12,
                           color: isDark
                               ? AppColors.textTertiaryDark
-                              : const Color(0xFF9ca3af),
+                              : const Color(0xFF9CA3AF),
                         ),
                       ),
                     ],
@@ -1151,13 +1335,15 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
               ],
             ),
           ),
-          // Username
-          Expanded(
+
+          // USERNAME
+          cell(
             flex: 2,
             child: Text(
               account.username.length > 15
                   ? '${account.username.substring(0, 12)}...'
                   : account.username,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 14,
                 color: isDark
@@ -1166,11 +1352,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
               ),
             ),
           ),
-          // Phone
-          Expanded(
+
+          // PHONE
+          cell(
             flex: 2,
             child: Text(
               account.phoneNumber,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 14,
                 color: isDark
@@ -1179,20 +1367,30 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
               ),
             ),
           ),
-          // Role
-          Expanded(flex: 2, child: _buildRoleBadge(account.role, isDark)),
-          // Availability
-          Expanded(
+
+          // ROLE
+          cell(flex: 2, child: _buildRoleBadge(account.role, isDark)),
+
+          // AVAILABILITY
+          cell(
             flex: 2,
             child: _buildAvailabilityBadge(account.availabilityStatus, isDark),
           ),
-          // Assigned Bus
-          Expanded(
+
+          // ASSIGNED BUS
+          cell(
             flex: 2,
             child: _buildAssignmentBadge(account.isAssigned, isDark),
           ),
-          // Actions
-          SizedBox(width: 80, child: _buildActionsMenu(account)),
+
+          // ACTION
+          SizedBox(
+            width: 56,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildActionsMenu(account),
+            ),
+          ),
         ],
       ),
     );
@@ -1214,27 +1412,33 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
   }
 
   Widget _buildRoleBadge(String role, bool isDark) {
+    final bool isDriver = role.toLowerCase() == 'driver';
+
+    final Color bgColor = isDriver
+        ? const Color(0xFFE0F2FF) // light blue
+        : const Color(0xFFF3E8FF); // light purple
+
+    final Color fgColor = isDriver
+        ? const Color(0xFF2563EB) // blue
+        : const Color(0xFF9333EA); // purple
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFf3e8ff),
+        color: bgColor,
         borderRadius: BorderRadius.circular(AppSizes.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            role == 'driver' ? Icons.person_outline : Icons.person_outline,
-            size: 14,
-            color: const Color(0xFF9333ea),
-          ),
+          Icon(Icons.person_outline, size: 14, color: fgColor),
           const SizedBox(width: 6),
           Text(
-            role == 'driver' ? 'driver' : 'conductor',
-            style: const TextStyle(
+            isDriver ? 'driver' : 'conductor',
+            style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF9333ea),
+              fontWeight: FontWeight.bold,
+              color: fgColor,
             ),
           ),
         ],
@@ -1288,13 +1492,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: textColor),
+          Icon(icon, size: 14, color: textColor, fontWeight: FontWeight.bold),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
               color: textColor,
             ),
           ),
@@ -1324,7 +1528,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
               'Assigned',
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.bold,
                 color: Color(0xFF065f46),
               ),
             ),

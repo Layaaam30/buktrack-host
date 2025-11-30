@@ -144,12 +144,11 @@ class _BusDialogState extends State<BusDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Plate Number
                       _buildTextField(
                         controller: _plateNumberController,
-                        label: 'Plate Number',
+                        label: 'Plate Number *',
                         hint: 'e.g., ABC 1234',
-                        icon: Icons.directions_bus_rounded,
+                        icon: TablerIcons.bus,
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Plate number is required';
@@ -187,33 +186,32 @@ class _BusDialogState extends State<BusDialog> {
                       const SizedBox(height: AppSizes.lg),
 
                       // Current Passenger Count
-                      _buildTextField(
-                        controller: _passengerCountController,
-                        label: 'Current Passenger Count',
-                        hint: 'e.g., 0',
-                        icon: Icons.people_rounded,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Passenger count is required';
-                          }
-                          final count = int.tryParse(value);
-                          if (count == null || count < 0) {
-                            return 'Please enter a valid count';
-                          }
-                          final capacity =
-                              int.tryParse(_totalCapacityController.text) ?? 0;
-                          if (count > capacity) {
-                            return 'Cannot exceed total capacity';
-                          }
-                          return null;
-                        },
-                        isDark: isDark,
-                      ),
-
+                      // _buildTextField(
+                      //   controller: _passengerCountController,
+                      //   label: 'Current Passenger Count',
+                      //   hint: 'e.g., 0',
+                      //   icon: Icons.people_rounded,
+                      //   keyboardType: TextInputType.number,
+                      //   inputFormatters: [
+                      //     FilteringTextInputFormatter.digitsOnly,
+                      //   ],
+                      //   validator: (value) {
+                      //     if (value == null || value.trim().isEmpty) {
+                      //       return 'Passenger count is required';
+                      //     }
+                      //     final count = int.tryParse(value);
+                      //     if (count == null || count < 0) {
+                      //       return 'Please enter a valid count';
+                      //     }
+                      //     final capacity =
+                      //         int.tryParse(_totalCapacityController.text) ?? 0;
+                      //     if (count > capacity) {
+                      //       return 'Cannot exceed total capacity';
+                      //     }
+                      //     return null;
+                      //   },
+                      //   isDark: isDark,
+                      // ),
                       const SizedBox(height: AppSizes.lg),
 
                       // Status Dropdown
@@ -258,7 +256,7 @@ class _BusDialogState extends State<BusDialog> {
               borderRadius: BorderRadius.circular(AppSizes.radiusMd),
             ),
             child: Icon(
-              isEditing ? Icons.edit_rounded : Icons.add_rounded,
+              isEditing ? Icons.edit_rounded : TablerIcons.bus,
               color: Colors.white,
               size: 24,
             ),

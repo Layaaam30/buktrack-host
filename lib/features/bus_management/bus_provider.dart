@@ -146,9 +146,7 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-
-
-// ========== IMPLMEENTS CRUD OPERATIONS FOR BUS ==========
+  // ========== IMPLMEENTS CRUD OPERATIONS FOR BUS ==========
 
   Future<String?> createBus(Bus bus) async {
     _isLoading = true;
@@ -204,7 +202,7 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Update bus status 
+  /// Update bus status
   Future<bool> updateBusStatus(String busId, String status) async {
     try {
       await _busService.updateBusStatus(busId, status);

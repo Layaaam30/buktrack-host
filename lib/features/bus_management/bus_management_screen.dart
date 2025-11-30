@@ -589,11 +589,11 @@ class _BusManagementScreenState extends State<BusManagementScreen>
               if (isMobile) {
                 return Column(
                   children: [
-                    _buildFilterControl('Status', isDark, busProvider),
+                    _buildStatusFilterControl('Status', isDark, busProvider),
                     const SizedBox(height: AppSizes.lg),
                     _buildSearchControl('Search', isDark, busProvider),
                     const SizedBox(height: AppSizes.lg),
-                    SizedBox(width: double.infinity, child: _buildAddButton2()),
+                    // SizedBox(width: double.infinity, child: _buildAddButton2()),
                   ],
                 );
               }
@@ -601,14 +601,22 @@ class _BusManagementScreenState extends State<BusManagementScreen>
               return Row(
                 children: [
                   Expanded(
-                    child: _buildFilterControl('Status', isDark, busProvider),
+                    child: _buildStatusFilterControl(
+                      'Status',
+                      isDark,
+                      busProvider,
+                    ),
                   ),
+                  // const SizedBox(width: AppSizes.lg),
+                  // Expanded(
+                  //   child: _buildControl('Search', isDark, busProvider),
+                  // ),
                   const SizedBox(width: AppSizes.lg),
                   Expanded(
                     child: _buildSearchControl('Search', isDark, busProvider),
                   ),
                   const SizedBox(width: AppSizes.lg),
-                  _buildAddButton2(),
+                  // _buildAddButton2(),
                 ],
               );
             },
@@ -618,7 +626,7 @@ class _BusManagementScreenState extends State<BusManagementScreen>
     );
   }
 
-  Widget _buildFilterControl(
+  Widget _buildStatusFilterControl(
     String label,
     bool isDark,
     BusProvider busProvider,
@@ -744,29 +752,29 @@ class _BusManagementScreenState extends State<BusManagementScreen>
     );
   }
 
-  Widget _buildAddButton2() {
-    return ElevatedButton.icon(
-      onPressed: _showAddBusDialog,
-      icon: const Icon(TablerIcons.plus, size: 20),
-      label: const Text('Add Bus'),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFf97316),
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.xl,
-          vertical: AppSizes.md + 2,
-        ),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-        ),
-        textStyle: const TextStyle(
-          fontSize: AppSizes.fontSizeSm,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
+  // Widget _buildAddButton2() {
+  //   return ElevatedButton.icon(
+  //     onPressed: _showAddBusDialog,
+  //     icon: const Icon(TablerIcons.plus, size: 20),
+  //     label: const Text('Add Bus'),
+  //     style: ElevatedButton.styleFrom(
+  //       backgroundColor: const Color(0xFFf97316),
+  //       foregroundColor: Colors.white,
+  //       padding: const EdgeInsets.symmetric(
+  //         horizontal: AppSizes.xl,
+  //         vertical: AppSizes.md + 2,
+  //       ),
+  //       elevation: 0,
+  //       shape: RoundedRectangleBorder(
+  //         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+  //       ),
+  //       textStyle: const TextStyle(
+  //         fontSize: AppSizes.fontSizeSm,
+  //         fontWeight: FontWeight.w600,
+  //       ),
+  //     ),
+  //   );
+  // }
 
   Widget _buildLoadingState(bool isDark) {
     return Card(
