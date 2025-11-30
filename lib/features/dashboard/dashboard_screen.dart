@@ -40,10 +40,13 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Future<void> _initializeDashboard() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final analyticsProvider = Provider.of<DashboardAnalyticsProvider>(context, listen: false);
-    
+    final analyticsProvider = Provider.of<DashboardAnalyticsProvider>(
+      context,
+      listen: false,
+    );
+
     final companyId = authProvider.companyId;
-    
+
     if (companyId != null && companyId.isNotEmpty) {
       analyticsProvider.setCompanyId(companyId);
       await analyticsProvider.loadAllAnalytics();
@@ -73,40 +76,39 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Enhanced Page Header
                 _buildEnhancedHeader(isDark, isMobile, analyticsProvider),
 
                 const SizedBox(height: AppSizes.xxl),
 
-                // Summary Stats Grid
                 _buildSummaryStatsGrid(isMobile, analyticsProvider, isDark),
 
                 const SizedBox(height: AppSizes.xxxl),
 
-                // Analytics Charts
                 if (analyticsProvider.isLoading)
                   _buildLoadingState(isDark)
                 else if (analyticsProvider.error != null)
                   _buildErrorState(analyticsProvider.error!, isDark)
                 else ...[
-                  // Row 1: Hourly Trend + Weekly Trend
-                  _buildChartsRow(
+                  _buildChartsRow(isMobile, [
+                    _buildHourlyTrendChart(analyticsProvider, isDark),
+                    _buildWeeklyTrendChart(analyticsProvider, isDark),
+                  ]),
+
+                  const SizedBox(height: AppSizes.xxl),
+
+                  _buildBusTypeOccupancyChart(
+                    analyticsProvider,
+                    isDark,
                     isMobile,
-                    [
-                      _buildHourlyTrendChart(analyticsProvider, isDark),
-                      _buildWeeklyTrendChart(analyticsProvider, isDark),
-                    ],
                   ),
 
                   const SizedBox(height: AppSizes.xxl),
 
-                  // Row 2: Bus Type Occupancy
-                  _buildBusTypeOccupancyChart(analyticsProvider, isDark, isMobile),
-
-                  const SizedBox(height: AppSizes.xxl),
-
-                  // Row 3: Route Distribution (optional - requires route selection)
-                  _buildRouteDistributionSection(analyticsProvider, isDark, isMobile),
+                  _buildRouteDistributionSection(
+                    analyticsProvider,
+                    isDark,
+                    isMobile,
+                  ),
                 ],
 
                 // Bottom spacing
@@ -140,14 +142,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
               ],
             ),
-            child: const Icon(TablerIcons.chart_bar, color: Colors.white, size: 32),
+            child: const Icon(
+              TablerIcons.chart_bar,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildEnhancedHeader(bool isDark, bool isMobile, DashboardAnalyticsProvider analyticsProvider) {
+  Widget _buildEnhancedHeader(
+    bool isDark,
+    bool isMobile,
+    DashboardAnalyticsProvider analyticsProvider,
+  ) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppSizes.radiusXl),
@@ -231,7 +241,11 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: const Color(0xFFdbeafe),
           borderRadius: BorderRadius.circular(AppSizes.radiusMd),
         ),
-        child: const Icon(TablerIcons.refresh, color: Color(0xFF2563eb), size: 20),
+        child: const Icon(
+          TablerIcons.refresh,
+          color: Color(0xFF2563eb),
+          size: 20,
+        ),
       ),
       label: const Text(
         'Refresh Data',
@@ -258,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     bool isDark,
   ) {
     final summary = analyticsProvider.dashboardSummary ?? {};
-    
+
     return LayoutBuilder(
       builder: (context, constraints) {
         int crossAxisCount = 4;
@@ -302,8 +316,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             StatCard(
               title: 'Peak Hour',
-              value: analyticsProvider.peakHour != null 
-                  ? '${analyticsProvider.peakHour}:00' 
+              value: analyticsProvider.peakHour != null
+                  ? '${analyticsProvider.peakHour}:00'
                   : '--',
               icon: TablerIcons.clock,
               color: AppColors.warning,
@@ -319,26 +333,37 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildChartsRow(bool isMobile, List<Widget> charts) {
     if (isMobile) {
       return Column(
-        children: charts.map((chart) => Padding(
-          padding: const EdgeInsets.only(bottom: AppSizes.xxl),
-          child: chart,
-        )).toList(),
+        children: charts
+            .map(
+              (chart) => Padding(
+                padding: const EdgeInsets.only(bottom: AppSizes.xxl),
+                child: chart,
+              ),
+            )
+            .toList(),
       );
     }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: charts.map((chart) => Expanded(
-        child: Padding(
-          padding: const EdgeInsets.only(right: AppSizes.xl),
-          child: chart,
-        ),
-      )).toList(),
+      children: charts
+          .map(
+            (chart) => Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: AppSizes.xl),
+                child: chart,
+              ),
+            ),
+          )
+          .toList(),
     );
   }
 
   // ========== 1. HOURLY TREND CHART ==========
-  Widget _buildHourlyTrendChart(DashboardAnalyticsProvider provider, bool isDark) {
+  Widget _buildHourlyTrendChart(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+  ) {
     final data = provider.hourlyTrend;
 
     return Card(
@@ -358,7 +383,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeLg,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: AppSizes.xs),
@@ -366,7 +393,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       'Boardings by hour (Today)',
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeSm,
-                        color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
                       ),
                     ),
                   ],
@@ -390,7 +419,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       drawVerticalLine: false,
                       horizontalInterval: 1,
                       getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight,
                         strokeWidth: 1,
                       ),
                     ),
@@ -403,7 +434,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                             value.toInt().toString(),
                             style: TextStyle(
                               fontSize: 12,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
                             ),
                           ),
                         ),
@@ -418,19 +451,30 @@ class _DashboardScreenState extends State<DashboardScreen>
                               '${value.toInt()}h',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
                               ),
                             ),
                           ),
                         ),
                       ),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
                     borderData: FlBorderData(show: false),
                     lineBarsData: [
                       LineChartBarData(
-                        spots: data.entries.map((e) => FlSpot(e.key.toDouble(), e.value.toDouble())).toList(),
+                        spots: data.entries
+                            .map(
+                              (e) =>
+                                  FlSpot(e.key.toDouble(), e.value.toDouble()),
+                            )
+                            .toList(),
                         isCurved: true,
                         color: AppColors.primary,
                         barWidth: 3,
@@ -455,7 +499,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // ========== 2. WEEKLY TREND CHART ==========
-  Widget _buildWeeklyTrendChart(DashboardAnalyticsProvider provider, bool isDark) {
+  Widget _buildWeeklyTrendChart(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+  ) {
     final data = provider.weeklyTrend;
 
     return Card(
@@ -475,7 +522,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeLg,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: AppSizes.xs),
@@ -483,7 +532,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       'Boardings by day (Past 7 days)',
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeSm,
-                        color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
                       ),
                     ),
                   ],
@@ -507,7 +558,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       drawVerticalLine: false,
                       horizontalInterval: 1,
                       getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight,
                         strokeWidth: 1,
                       ),
                     ),
@@ -520,7 +573,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                             value.toInt().toString(),
                             style: TextStyle(
                               fontSize: 12,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
                             ),
                           ),
                         ),
@@ -529,15 +584,26 @@ class _DashboardScreenState extends State<DashboardScreen>
                         sideTitles: SideTitles(
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
-                            final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                            if (value.toInt() >= 0 && value.toInt() < days.length) {
+                            final days = [
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                              'Sun',
+                            ];
+                            if (value.toInt() >= 0 &&
+                                value.toInt() < days.length) {
                               return Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: Text(
                                   days[value.toInt()],
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                    color: isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight,
                                   ),
                                 ),
                               );
@@ -546,8 +612,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                           },
                         ),
                       ),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
                     borderData: FlBorderData(show: false),
                     lineBarsData: [
@@ -577,14 +647,22 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   List<FlSpot> _weeklyDataToSpots(Map<String, int> data) {
-    final dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final dayOrder = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     final spots = <FlSpot>[];
-    
+
     for (int i = 0; i < dayOrder.length; i++) {
       final count = data[dayOrder[i]] ?? 0;
       spots.add(FlSpot(i.toDouble(), count.toDouble()));
     }
-    
+
     return spots;
   }
 
@@ -613,7 +691,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeLg,
                         fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
                       ),
                     ),
                     const SizedBox(height: AppSizes.xs),
@@ -621,7 +701,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       'Average capacity utilization (Past 30 days)',
                       style: TextStyle(
                         fontSize: AppSizes.fontSizeSm,
-                        color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
                       ),
                     ),
                   ],
@@ -648,7 +730,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                         getTooltipItem: (group, groupIndex, rod, rodIndex) {
                           return BarTooltipItem(
                             '${rod.toY.toStringAsFixed(1)}%',
-                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
                           );
                         },
                       ),
@@ -663,7 +748,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                             '${value.toInt()}%',
                             style: TextStyle(
                               fontSize: 12,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
                             ),
                           ),
                         ),
@@ -673,7 +760,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                           showTitles: true,
                           getTitlesWidget: (value, meta) {
                             final types = ['Small', 'Medium', 'Large'];
-                            if (value.toInt() >= 0 && value.toInt() < types.length) {
+                            if (value.toInt() >= 0 &&
+                                value.toInt() < types.length) {
                               return Padding(
                                 padding: const EdgeInsets.only(top: 8.0),
                                 child: Text(
@@ -681,7 +769,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                                    color: isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight,
                                   ),
                                 ),
                               );
@@ -690,8 +780,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                           },
                         ),
                       ),
-                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
                     borderData: FlBorderData(show: false),
                     gridData: FlGridData(
@@ -699,7 +793,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                       drawVerticalLine: false,
                       horizontalInterval: 20,
                       getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                        color: isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight,
                         strokeWidth: 1,
                       ),
                     ),
@@ -716,11 +812,11 @@ class _DashboardScreenState extends State<DashboardScreen>
   List<BarChartGroupData> _busTypeDataToBarGroups(Map<String, double> data) {
     final types = ['Small', 'Medium', 'Large'];
     final colors = [AppColors.info, AppColors.success, AppColors.primary];
-    
+
     return List.generate(types.length, (index) {
       final busType = types[index];
       final value = data[busType] ?? 0.0;
-      
+
       return BarChartGroupData(
         x: index,
         barRods: [
@@ -752,7 +848,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(
                 fontSize: AppSizes.fontSizeLg,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
               ),
             ),
             const SizedBox(height: AppSizes.xs),
@@ -760,7 +858,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               'Select a route to view boarding and alighting distribution',
               style: TextStyle(
                 fontSize: AppSizes.fontSizeSm,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
               ),
             ),
             const SizedBox(height: AppSizes.lg),
@@ -769,7 +869,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               style: TextStyle(
                 fontSize: AppSizes.fontSizeSm,
                 fontStyle: FontStyle.italic,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
               ),
             ),
           ],
@@ -787,7 +889,9 @@ class _DashboardScreenState extends State<DashboardScreen>
           Text(
             'Loading analytics data...',
             style: TextStyle(
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
             ),
           ),
         ],
@@ -801,18 +905,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         padding: const EdgeInsets.all(AppSizes.cardPadding),
         child: Column(
           children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 64,
-              color: AppColors.error,
-            ),
+            Icon(Icons.error_outline_rounded, size: 64, color: AppColors.error),
             const SizedBox(height: AppSizes.lg),
             Text(
               'Failed to load analytics',
               style: TextStyle(
                 fontSize: AppSizes.fontSizeLg,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
               ),
             ),
             const SizedBox(height: AppSizes.sm),
@@ -820,7 +922,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               error,
               style: TextStyle(
                 fontSize: AppSizes.fontSizeSm,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
               ),
               textAlign: TextAlign.center,
             ),
@@ -839,13 +943,17 @@ class _DashboardScreenState extends State<DashboardScreen>
             Icon(
               Icons.bar_chart_rounded,
               size: 48,
-              color: isDark ? AppColors.textTertiaryDark : AppColors.textTertiaryLight,
+              color: isDark
+                  ? AppColors.textTertiaryDark
+                  : AppColors.textTertiaryLight,
             ),
             const SizedBox(height: AppSizes.md),
             Text(
               message,
               style: TextStyle(
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
               ),
             ),
           ],

@@ -38,15 +38,15 @@ class DashboardAnalyticsService {
   /// Optimized: Fetches only logs for company's buses today
   Future<Map<int, int>> getDailyPassengerTrendByHour(String companyId) async {
     final cacheKey = 'daily_trend_hour_$companyId';
-    
+
     final cached = _getCached<Map<int, int>>(cacheKey);
     if (cached != null) {
-      print('📊 Using cached hourly trend data');
+      print('ðŸ“Š Using cached hourly trend data');
       return cached;
     }
 
     try {
-      print('📊 Fetching hourly passenger trend for company: $companyId');
+      print('ðŸ“Š Fetching hourly passenger trend for company: $companyId');
 
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
@@ -59,12 +59,12 @@ class DashboardAnalyticsService {
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        print('⚠️ No buses found for company');
+        print('âš ï¸ No buses found for company');
         return _initializeHourlyData();
       }
 
       final busIds = busesSnapshot.docs.map((doc) => doc.id).toList();
-      print('🚌 Found ${busIds.length} buses for company');
+      print('ðŸšŒ Found ${busIds.length} buses for company');
 
       // OPTIMIZATION: Batch queries in chunks to avoid "IN" query limits (max 10)
       final hourlyData = _initializeHourlyData();
@@ -72,7 +72,7 @@ class DashboardAnalyticsService {
 
       for (int i = 0; i < busIds.length; i += chunkSize) {
         final chunk = busIds.skip(i).take(chunkSize).toList();
-        
+
         // Query each bus's occupancy logs subcollection
         for (final busId in chunk) {
           final logsQuery = await _firestore
@@ -80,7 +80,10 @@ class DashboardAnalyticsService {
               .doc(busId)
               .collection('bus_occupancy_logs')
               .where('action_type', isEqualTo: 'board')
-              .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+              .where(
+                'timestamp',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+              )
               .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
               .get();
 
@@ -94,10 +97,12 @@ class DashboardAnalyticsService {
       }
 
       _setCache(cacheKey, hourlyData);
-      print('✅ Hourly trend aggregated: ${hourlyData.values.fold(0, (a, b) => a + b)} total boardings');
+      print(
+        'âœ… Hourly trend aggregated: ${hourlyData.values.fold(0, (a, b) => a + b)} total boardings',
+      );
       return hourlyData;
     } catch (e) {
-      print('❌ Error fetching hourly trend: $e');
+      print('âŒ Error fetching hourly trend: $e');
       rethrow;
     }
   }
@@ -112,17 +117,19 @@ class DashboardAnalyticsService {
 
   // ========== 2. WEEKLY PASSENGER TREND BY DAY ==========
   /// Optimized: Company-filtered, 7-day window
-  Future<Map<String, int>> getWeeklyPassengerTrendByDay(String companyId) async {
+  Future<Map<String, int>> getWeeklyPassengerTrendByDay(
+    String companyId,
+  ) async {
     final cacheKey = 'weekly_trend_day_$companyId';
-    
+
     final cached = _getCached<Map<String, int>>(cacheKey);
     if (cached != null) {
-      print('📊 Using cached weekly trend data');
+      print('ðŸ“Š Using cached weekly trend data');
       return cached;
     }
 
     try {
-      print('📊 Fetching weekly passenger trend for company: $companyId');
+      print('ðŸ“Š Fetching weekly passenger trend for company: $companyId');
 
       final now = DateTime.now();
       final startOfToday = DateTime(now.year, now.month, now.day);
@@ -140,7 +147,15 @@ class DashboardAnalyticsService {
 
       final busIds = busesSnapshot.docs.map((doc) => doc.id).toList();
       final weeklyData = _initializeWeeklyData();
-      final dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      final dayNames = [
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+        'Sunday',
+      ];
 
       // Query each bus's logs
       for (final busId in busIds) {
@@ -149,8 +164,16 @@ class DashboardAnalyticsService {
             .doc(busId)
             .collection('bus_occupancy_logs')
             .where('action_type', isEqualTo: 'board')
-            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
-            .where('timestamp', isLessThan: Timestamp.fromDate(startOfToday.add(const Duration(days: 1))))
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
+            )
+            .where(
+              'timestamp',
+              isLessThan: Timestamp.fromDate(
+                startOfToday.add(const Duration(days: 1)),
+              ),
+            )
             .get();
 
         for (var doc in logsQuery.docs) {
@@ -162,16 +185,26 @@ class DashboardAnalyticsService {
       }
 
       _setCache(cacheKey, weeklyData);
-      print('✅ Weekly trend aggregated: ${weeklyData.values.fold(0, (a, b) => a + b)} total boardings');
+      print(
+        'âœ… Weekly trend aggregated: ${weeklyData.values.fold(0, (a, b) => a + b)} total boardings',
+      );
       return weeklyData;
     } catch (e) {
-      print('❌ Error fetching weekly trend: $e');
+      print('âŒ Error fetching weekly trend: $e');
       rethrow;
     }
   }
 
   Map<String, int> _initializeWeeklyData() {
-    final dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     final data = <String, int>{};
     for (var day in dayNames) {
       data[day] = 0;
@@ -188,46 +221,48 @@ class DashboardAnalyticsService {
     String companyId,
   ) async {
     final cacheKey = 'route_distribution_${companyId}_$routeId';
-    
+
     final cached = _getCached<List<WaypointPassengerData>>(cacheKey);
     if (cached != null) {
-      print('📊 Using cached route distribution data');
+      print('ðŸ“Š Using cached route distribution data');
       return cached;
     }
 
     try {
-      print('📊 Fetching route passenger distribution for route: $routeId');
+      print('ðŸ“Š Fetching route passenger distribution for route: $routeId');
 
       // Get route document
       final routeDoc = await _firestore.collection('routes').doc(routeId).get();
-      
+
       if (!routeDoc.exists) {
         throw Exception('Route not found');
       }
 
       final routeData = routeDoc.data()!;
-      
+
       // SCHEMA FIX: waypoints is an array of strings
       final waypoints = routeData['waypoints'] as List<dynamic>? ?? [];
-      
+
       if (waypoints.isEmpty) {
-        print('⚠️ No waypoints found for route');
+        print('âš ï¸ No waypoints found for route');
         return [];
       }
 
-      print('🛣️ Found ${waypoints.length} waypoints');
+      print('ðŸ›£ï¸ Found ${waypoints.length} waypoints');
 
       // Initialize waypoint data with string names
       final waypointDataList = <WaypointPassengerData>[];
       for (int i = 0; i < waypoints.length; i++) {
-        waypointDataList.add(WaypointPassengerData(
-          waypointName: waypoints[i].toString(),
-          waypointIndex: i,
-          latitude: 0.0, // Not available in current schema
-          longitude: 0.0, // Not available in current schema
-          boardingCount: 0,
-          alightingCount: 0,
-        ));
+        waypointDataList.add(
+          WaypointPassengerData(
+            waypointName: waypoints[i].toString(),
+            waypointIndex: i,
+            latitude: 0.0, // Not available in current schema
+            longitude: 0.0, // Not available in current schema
+            boardingCount: 0,
+            alightingCount: 0,
+          ),
+        );
       }
 
       // Get occupancy logs for this route (past 7 days)
@@ -241,7 +276,7 @@ class DashboardAnalyticsService {
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        print('⚠️ No buses found on this route');
+        print('âš ï¸ No buses found on this route');
         _setCache(cacheKey, waypointDataList);
         return waypointDataList;
       }
@@ -253,10 +288,13 @@ class DashboardAnalyticsService {
             .doc(busDoc.id)
             .collection('bus_occupancy_logs')
             .where('route_ID', isEqualTo: routeId)
-            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo))
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
+            )
             .get();
 
-        // LIMITATION: Without waypoint_name field in logs, we can't accurately 
+        // LIMITATION: Without waypoint_name field in logs, we can't accurately
         // map logs to waypoints. The schema document notes this needs to be added.
         // For now, we'll use location-based proximity if available
         for (var doc in logsQuery.docs) {
@@ -273,27 +311,31 @@ class DashboardAnalyticsService {
       }
 
       _setCache(cacheKey, waypointDataList);
-      print('⚠️ Route distribution limited: Schema needs waypoint_name field in logs');
+      print(
+        'âš ï¸ Route distribution limited: Schema needs waypoint_name field in logs',
+      );
       return waypointDataList;
     } catch (e) {
-      print('❌ Error fetching route distribution: $e');
+      print('âŒ Error fetching route distribution: $e');
       rethrow;
     }
   }
 
   // ========== 4. BUS TYPE AVERAGE OCCUPANCY ==========
   /// Optimized: Company-filtered trips with efficient aggregation
-  Future<Map<String, double>> getBusTypeAverageOccupancy(String companyId) async {
+  Future<Map<String, double>> getBusTypeAverageOccupancy(
+    String companyId,
+  ) async {
     final cacheKey = 'bus_type_occupancy_$companyId';
-    
+
     final cached = _getCached<Map<String, double>>(cacheKey);
     if (cached != null) {
-      print('📊 Using cached bus type occupancy data');
+      print('ðŸ“Š Using cached bus type occupancy data');
       return cached;
     }
 
     try {
-      print('📊 Fetching bus type average occupancy for company: $companyId');
+      print('ðŸ“Š Fetching bus type average occupancy for company: $companyId');
 
       // Get company's buses with capacity info
       final busesSnapshot = await _firestore
@@ -302,11 +344,11 @@ class DashboardAnalyticsService {
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        print('⚠️ No buses found for company');
+        print('âš ï¸ No buses found for company');
         return _initializeBusTypeData();
       }
 
-      print('🚌 Found ${busesSnapshot.docs.length} buses');
+      print('ðŸšŒ Found ${busesSnapshot.docs.length} buses');
 
       // Create bus lookup map
       final busMap = <String, Map<String, dynamic>>{};
@@ -320,15 +362,20 @@ class DashboardAnalyticsService {
 
       // Get completed trips (past 30 days)
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-      
+
       final tripsSnapshot = await _firestore
           .collection('trips')
           .where('company_ID', isEqualTo: companyId)
           .where('current_status', isEqualTo: 'completed')
-          .where('end_time', isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo))
+          .where(
+            'end_time',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo),
+          )
           .get();
 
-      print('🎫 Found ${tripsSnapshot.docs.length} completed trips in last 30 days');
+      print(
+        'ðŸŽ« Found ${tripsSnapshot.docs.length} completed trips in last 30 days',
+      );
 
       // Aggregate occupancy by bus type
       final busTypeData = <String, List<double>>{
@@ -340,7 +387,8 @@ class DashboardAnalyticsService {
       for (var doc in tripsSnapshot.docs) {
         final tripData = doc.data();
         final busId = tripData['bus_ID'] as String?;
-        final finalPassengerCount = tripData['final_passenger_count'] as int? ?? 0;
+        final finalPassengerCount =
+            tripData['final_passenger_count'] as int? ?? 0;
 
         if (busId == null || !busMap.containsKey(busId)) continue;
 
@@ -349,18 +397,19 @@ class DashboardAnalyticsService {
         final busType = busData['bus_type'] as String;
 
         if (totalCapacity > 0) {
-          final occupancyPercentage = (finalPassengerCount / totalCapacity) * 100;
+          final occupancyPercentage =
+              (finalPassengerCount / totalCapacity) * 100;
           busTypeData[busType]!.add(occupancyPercentage);
         }
       }
 
       // Calculate averages
       final averageOccupancy = <String, double>{};
-      
+
       for (var entry in busTypeData.entries) {
         final busType = entry.key;
         final percentages = entry.value;
-        
+
         if (percentages.isEmpty) {
           averageOccupancy[busType] = 0.0;
         } else {
@@ -370,20 +419,16 @@ class DashboardAnalyticsService {
       }
 
       _setCache(cacheKey, averageOccupancy);
-      print('✅ Bus type occupancy aggregated successfully');
+      print('âœ… Bus type occupancy aggregated successfully');
       return averageOccupancy;
     } catch (e) {
-      print('❌ Error fetching bus type occupancy: $e');
+      print('âŒ Error fetching bus type occupancy: $e');
       rethrow;
     }
   }
 
   Map<String, double> _initializeBusTypeData() {
-    return {
-      'Small': 0.0,
-      'Medium': 0.0,
-      'Large': 0.0,
-    };
+    return {'Small': 0.0, 'Medium': 0.0, 'Large': 0.0};
   }
 
   String _inferBusType(int capacity) {
@@ -396,15 +441,15 @@ class DashboardAnalyticsService {
   /// Uses count() queries for maximum efficiency
   Future<Map<String, dynamic>> getDashboardSummary(String companyId) async {
     final cacheKey = 'dashboard_summary_$companyId';
-    
+
     final cached = _getCached<Map<String, dynamic>>(cacheKey);
     if (cached != null) {
-      print('📊 Using cached dashboard summary');
+      print('ðŸ“Š Using cached dashboard summary');
       return cached;
     }
 
     try {
-      print('📊 Fetching dashboard summary for company: $companyId');
+      print('ðŸ“Š Fetching dashboard summary for company: $companyId');
 
       // OPTIMIZATION: Use count() queries - only 1 document read each!
       final busesCountFuture = _firestore
@@ -421,12 +466,15 @@ class DashboardAnalyticsService {
 
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
-      
+
       final activeTripsCountFuture = _firestore
           .collection('trips')
           .where('company_ID', isEqualTo: companyId)
           .where('current_status', isEqualTo: 'active')
-          .where('start_time', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .where(
+            'start_time',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+          )
           .count()
           .get();
 
@@ -444,24 +492,26 @@ class DashboardAnalyticsService {
       };
 
       _setCache(cacheKey, summary);
-      print('✅ Dashboard summary fetched with only 3 reads!');
+      print('âœ… Dashboard summary fetched with only 3 reads!');
       return summary;
     } catch (e) {
-      print('❌ Error fetching dashboard summary: $e');
-      return {
-        'total_buses': 0,
-        'total_routes': 0,
-        'active_trips_today': 0,
-      };
+      print('âŒ Error fetching dashboard summary: $e');
+      return {'total_buses': 0, 'total_routes': 0, 'active_trips_today': 0};
     }
   }
 
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
     const earthRadiusKm = 6371.0;
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
 
-    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
         math.cos(_degreesToRadians(lat1)) *
             math.cos(_degreesToRadians(lat2)) *
             math.sin(dLon / 2) *
@@ -476,15 +526,11 @@ class DashboardAnalyticsService {
   }
 }
 
-
 class _CachedData {
   final dynamic data;
   final DateTime timestamp;
 
-  _CachedData({
-    required this.data,
-    required this.timestamp,
-  });
+  _CachedData({required this.data, required this.timestamp});
 }
 
 class WaypointPassengerData {

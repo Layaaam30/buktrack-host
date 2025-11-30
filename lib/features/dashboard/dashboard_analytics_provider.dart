@@ -4,7 +4,8 @@ import 'dashboard_analytics_service.dart';
 /// Dashboard Analytics Provider
 /// Manages analytics data state
 class DashboardAnalyticsProvider with ChangeNotifier {
-  final DashboardAnalyticsService _analyticsService = DashboardAnalyticsService();
+  final DashboardAnalyticsService _analyticsService =
+      DashboardAnalyticsService();
 
   // State
   bool _isLoading = false;
@@ -34,7 +35,7 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Initialize with company ID
   void setCompanyId(String companyId) {
     if (_currentCompanyId == companyId) return;
-    
+
     _currentCompanyId = companyId;
     _clearData();
     notifyListeners();
@@ -88,7 +89,9 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Load dashboard summary statistics
   Future<void> loadDashboardSummary() async {
     try {
-      _dashboardSummary = await _analyticsService.getDashboardSummary(_currentCompanyId);
+      _dashboardSummary = await _analyticsService.getDashboardSummary(
+        _currentCompanyId,
+      );
       notifyListeners();
     } catch (e) {
       print('Error loading dashboard summary: $e');
@@ -99,7 +102,9 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Load hourly passenger trend
   Future<void> loadHourlyTrend() async {
     try {
-      _hourlyTrend = await _analyticsService.getDailyPassengerTrendByHour(_currentCompanyId);
+      _hourlyTrend = await _analyticsService.getDailyPassengerTrendByHour(
+        _currentCompanyId,
+      );
       notifyListeners();
     } catch (e) {
       print('Error loading hourly trend: $e');
@@ -110,7 +115,9 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Load weekly passenger trend
   Future<void> loadWeeklyTrend() async {
     try {
-      _weeklyTrend = await _analyticsService.getWeeklyPassengerTrendByDay(_currentCompanyId);
+      _weeklyTrend = await _analyticsService.getWeeklyPassengerTrendByDay(
+        _currentCompanyId,
+      );
       notifyListeners();
     } catch (e) {
       print('Error loading weekly trend: $e');
@@ -124,10 +131,8 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _routeDistribution = await _analyticsService.getRoutePassengerDistribution(
-        routeId,
-        _currentCompanyId,
-      );
+      _routeDistribution = await _analyticsService
+          .getRoutePassengerDistribution(routeId, _currentCompanyId);
       notifyListeners();
     } catch (e) {
       _error = 'Failed to load route distribution: $e';
@@ -138,7 +143,9 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Load bus type average occupancy
   Future<void> loadBusTypeOccupancy() async {
     try {
-      _busTypeOccupancy = await _analyticsService.getBusTypeAverageOccupancy(_currentCompanyId);
+      _busTypeOccupancy = await _analyticsService.getBusTypeAverageOccupancy(
+        _currentCompanyId,
+      );
       notifyListeners();
     } catch (e) {
       print('Error loading bus type occupancy: $e');
@@ -185,34 +192,34 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Get peak hour from hourly trend
   int? get peakHour {
     if (_hourlyTrend == null || _hourlyTrend!.isEmpty) return null;
-    
+
     int maxHour = 0;
     int maxCount = 0;
-    
+
     for (var entry in _hourlyTrend!.entries) {
       if (entry.value > maxCount) {
         maxCount = entry.value;
         maxHour = entry.key;
       }
     }
-    
+
     return maxHour;
   }
 
   /// Get peak day from weekly trend
   String? get peakDay {
     if (_weeklyTrend == null || _weeklyTrend!.isEmpty) return null;
-    
+
     String maxDay = '';
     int maxCount = 0;
-    
+
     for (var entry in _weeklyTrend!.entries) {
       if (entry.value > maxCount) {
         maxCount = entry.value;
         maxDay = entry.key;
       }
     }
-    
+
     return maxDay;
   }
 
@@ -231,10 +238,10 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   /// Get busiest waypoint
   WaypointPassengerData? get busiestWaypoint {
     if (_routeDistribution == null || _routeDistribution!.isEmpty) return null;
-    
+
     WaypointPassengerData? busiest;
     int maxActivity = 0;
-    
+
     for (var waypoint in _routeDistribution!) {
       final activity = waypoint.boardingCount + waypoint.alightingCount;
       if (activity > maxActivity) {
@@ -242,24 +249,24 @@ class DashboardAnalyticsProvider with ChangeNotifier {
         busiest = waypoint;
       }
     }
-    
+
     return busiest;
   }
 
   /// Get most efficient bus type (highest occupancy)
   String? get mostEfficientBusType {
     if (_busTypeOccupancy == null || _busTypeOccupancy!.isEmpty) return null;
-    
+
     String maxType = '';
     double maxOccupancy = 0.0;
-    
+
     for (var entry in _busTypeOccupancy!.entries) {
       if (entry.value > maxOccupancy) {
         maxOccupancy = entry.value;
         maxType = entry.key;
       }
     }
-    
+
     return maxType;
   }
 }

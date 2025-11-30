@@ -3,7 +3,7 @@ import 'dart:async';
 import 'activity_log_model.dart';
 
 /// Activity Log Service - QUOTA OPTIMIZED
-/// 
+///
 /// Key optimizations:
 /// 1. Batched writes - Queue logs and write in batches
 /// 2. Local filtering - Minimize Firestore queries
@@ -12,13 +12,13 @@ import 'activity_log_model.dart';
 /// 5. Rate limiting - Prevent quota exhaustion
 class ActivityLogService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+
   // Batch write queue
   final List<ActivityLog> _logQueue = [];
   Timer? _batchTimer;
   static const int _batchSize = 50; // Write in batches of 50
   static const Duration _batchInterval = Duration(seconds: 30);
-  
+
   // Rate limiting
   static const int _maxLogsPerMinute = 100;
   final List<DateTime> _recentLogs = [];
@@ -44,15 +44,15 @@ class ActivityLogService {
   bool _isRateLimited() {
     final now = DateTime.now();
     final oneMinuteAgo = now.subtract(const Duration(minutes: 1));
-    
+
     // Remove old entries
     _recentLogs.removeWhere((time) => time.isBefore(oneMinuteAgo));
-    
+
     if (_recentLogs.length >= _maxLogsPerMinute) {
       print('⚠️ Activity log rate limit reached');
       return true;
     }
-    
+
     _recentLogs.add(now);
     return false;
   }
@@ -157,7 +157,9 @@ class ActivityLogService {
     query = query.limit(limit);
 
     return query.snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) => ActivityLog.fromFirestore(doc)).toList();
+      return snapshot.docs
+          .map((doc) => ActivityLog.fromFirestore(doc))
+          .toList();
     });
   }
 
@@ -185,10 +187,16 @@ class ActivityLogService {
         query = query.where('user_id', isEqualTo: userId);
       }
       if (startDate != null) {
-        query = query.where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate));
+        query = query.where(
+          'timestamp',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(startDate),
+        );
       }
       if (endDate != null) {
-        query = query.where('timestamp', isLessThanOrEqualTo: Timestamp.fromDate(endDate));
+        query = query.where(
+          'timestamp',
+          isLessThanOrEqualTo: Timestamp.fromDate(endDate),
+        );
       }
 
       // Add orderBy
@@ -202,7 +210,7 @@ class ActivityLogService {
       query = query.limit(limit);
 
       final snapshot = await query.get();
-      
+
       // Handle empty results
       if (snapshot.docs.isEmpty) {
         print('📭 No activity logs found');
@@ -237,10 +245,7 @@ class ActivityLogService {
   }) async {
     try {
       // Fetch recent logs
-      final logs = await getActivityLogs(
-        companyId: companyId,
-        limit: limit,
-      );
+      final logs = await getActivityLogs(companyId: companyId, limit: limit);
 
       // Filter client-side
       final query = searchQuery.toLowerCase();
@@ -265,10 +270,18 @@ class ActivityLogService {
 
       return {
         'total': logs.length,
-        'authentication': logs.where((l) => l.category == ActivityCategory.authentication).length,
-        'user_actions': logs.where((l) => l.category == ActivityCategory.userActions).length,
-        'business': logs.where((l) => l.category == ActivityCategory.business).length,
-        'errors': logs.where((l) => l.category == ActivityCategory.errors).length,
+        'authentication': logs
+            .where((l) => l.category == ActivityCategory.authentication)
+            .length,
+        'user_actions': logs
+            .where((l) => l.category == ActivityCategory.userActions)
+            .length,
+        'business': logs
+            .where((l) => l.category == ActivityCategory.business)
+            .length,
+        'errors': logs
+            .where((l) => l.category == ActivityCategory.errors)
+            .length,
         'critical': logs.where((l) => l.riskLevel == RiskLevel.critical).length,
         'high_risk': logs.where((l) => l.riskLevel == RiskLevel.high).length,
       };
@@ -283,7 +296,7 @@ class ActivityLogService {
   Future<void> cleanupOldLogs({int daysToKeep = 90}) async {
     try {
       final cutoffDate = DateTime.now().subtract(Duration(days: daysToKeep));
-      
+
       final snapshot = await _auditLogsCollection
           .where('timestamp', isLessThan: Timestamp.fromDate(cutoffDate))
           .limit(500) // Delete in batches
@@ -389,10 +402,7 @@ class ActivityLogger {
         'bus_plate': busPlate,
         'operation': 'create_bus',
       },
-      entity: {
-        'type': 'bus',
-        'name': busPlate,
-      },
+      entity: {'type': 'bus', 'name': busPlate},
     );
   }
 
@@ -412,10 +422,7 @@ class ActivityLogger {
         'bus_plate': busPlate,
         'operation': 'delete_bus',
       },
-      entity: {
-        'type': 'bus',
-        'name': busPlate,
-      },
+      entity: {'type': 'bus', 'name': busPlate},
     );
   }
 
@@ -436,10 +443,7 @@ class ActivityLogger {
         'account_role': role,
         'operation': 'create_account',
       },
-      entity: {
-        'type': 'account',
-        'name': accountName,
-      },
+      entity: {'type': 'account', 'name': accountName},
     );
   }
 
