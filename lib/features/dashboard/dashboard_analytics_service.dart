@@ -1,12 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 
-/// Dashboard Analytics Service - Optimized for Schema & Quota
-/// Changes:
-/// - Added company_ID filtering to all queries
-/// - Fixed routes schema (waypoints are strings, not objects)
-/// - Optimized query strategies for lower quota usage
-/// - Improved caching with company-specific keys
+/// Dashboard Analytics Service
+/// Implements analytical data gathered from commuting and operations
 class DashboardAnalyticsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -34,119 +30,177 @@ class DashboardAnalyticsService {
     _cache[key] = _CachedData(data: data, timestamp: DateTime.now());
   }
 
-  // ========== 1. DAILY PASSENGER TREND BY HOUR ==========
-  /// Optimized: Fetches only logs for company's buses today
-  Future<Map<int, int>> getDailyPassengerTrendByHour(String companyId) async {
-    final cacheKey = 'daily_trend_hour_$companyId';
+  // ========== HELPER: Get Week Number ==========
+  int _getWeekNumber(DateTime date) {
+    final firstDayOfYear = DateTime(date.year, 1, 1);
+    final daysSinceFirstDay = date.difference(firstDayOfYear).inDays;
+    return ((daysSinceFirstDay + firstDayOfYear.weekday) / 7).ceil();
+  }
+
+  String _getWeekLabel(DateTime date) {
+    final weekStart = date.subtract(Duration(days: date.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    return 'Week ${_getWeekNumber(date)} (${_formatReadableDate(weekStart)} - ${_formatReadableDate(weekEnd)}, ${weekEnd.year})';
+  }
+
+  String _formatReadableDate(DateTime date) {
+    final months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${months[date.month - 1]} ${date.day}';
+  }
+
+  // ========== 1. LIVE PASSENGER HOURLY TREND (TODAY) ==========
+  /// Shows hourly boarding trend for today (0-23 hours)
+  Future<Map<int, int>> getLivePassengerHourlyTrend(String companyId) async {
+    final cacheKey = 'live_hourly_trend_$companyId';
 
     final cached = _getCached<Map<int, int>>(cacheKey);
-    if (cached != null) {
-      print('ðŸ“Š Using cached hourly trend data');
-      return cached;
-    }
+    if (cached != null) return cached;
 
     try {
-      print('ðŸ“Š Fetching hourly passenger trend for company: $companyId');
-
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
 
-      // OPTIMIZATION: First get company's bus IDs to limit scope
       final busesSnapshot = await _firestore
           .collection('buses')
           .where('company_ID', isEqualTo: companyId)
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        print('âš ï¸ No buses found for company');
         return _initializeHourlyData();
       }
 
-      final busIds = busesSnapshot.docs.map((doc) => doc.id).toList();
-      print('ðŸšŒ Found ${busIds.length} buses for company');
-
-      // OPTIMIZATION: Batch queries in chunks to avoid "IN" query limits (max 10)
       final hourlyData = _initializeHourlyData();
-      const chunkSize = 10;
 
-      for (int i = 0; i < busIds.length; i += chunkSize) {
-        final chunk = busIds.skip(i).take(chunkSize).toList();
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where('action_type', isEqualTo: 'board')
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+            )
+            .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
+            .get();
 
-        // Query each bus's occupancy logs subcollection
-        for (final busId in chunk) {
-          final logsQuery = await _firestore
-              .collection('buses')
-              .doc(busId)
-              .collection('bus_occupancy_logs')
-              .where('action_type', isEqualTo: 'board')
-              .where(
-                'timestamp',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-              )
-              .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
-              .get();
-
-          // Aggregate
-          for (var doc in logsQuery.docs) {
-            final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
-            final hour = timestamp.hour;
-            hourlyData[hour] = (hourlyData[hour] ?? 0) + 1;
-          }
+        for (var doc in logsQuery.docs) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+          final hour = timestamp.hour;
+          hourlyData[hour] = (hourlyData[hour] ?? 0) + 1;
         }
       }
 
       _setCache(cacheKey, hourlyData);
-      print(
-        'âœ… Hourly trend aggregated: ${hourlyData.values.fold(0, (a, b) => a + b)} total boardings',
-      );
       return hourlyData;
     } catch (e) {
-      print('âŒ Error fetching hourly trend: $e');
+      print('Error fetching live hourly trend: $e');
       rethrow;
     }
   }
 
-  Map<int, int> _initializeHourlyData() {
-    final data = <int, int>{};
-    for (int i = 0; i < 24; i++) {
-      data[i] = 0;
-    }
-    return data;
-  }
-
-  // ========== 2. WEEKLY PASSENGER TREND BY DAY ==========
-  /// Optimized: Company-filtered, 7-day window
-  Future<Map<String, int>> getWeeklyPassengerTrendByDay(
+  // ========== 2. DAILY PASSENGER TREND (LAST 30 DAYS) ==========
+  /// Shows daily totals for the past 30 days
+  Future<Map<String, int>> getDailyPassengerTrend30Days(
     String companyId,
   ) async {
-    final cacheKey = 'weekly_trend_day_$companyId';
+    final cacheKey = 'daily_trend_30days_$companyId';
 
     final cached = _getCached<Map<String, int>>(cacheKey);
-    if (cached != null) {
-      print('ðŸ“Š Using cached weekly trend data');
-      return cached;
-    }
+    if (cached != null) return cached;
 
     try {
-      print('ðŸ“Š Fetching weekly passenger trend for company: $companyId');
-
       final now = DateTime.now();
-      final startOfToday = DateTime(now.year, now.month, now.day);
-      final sevenDaysAgo = startOfToday.subtract(const Duration(days: 7));
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
-      // Get company's bus IDs
       final busesSnapshot = await _firestore
           .collection('buses')
           .where('company_ID', isEqualTo: companyId)
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        return _initializeWeeklyData();
+        return {};
       }
 
-      final busIds = busesSnapshot.docs.map((doc) => doc.id).toList();
-      final weeklyData = _initializeWeeklyData();
+      final dailyData = <String, int>{};
+
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where('action_type', isEqualTo: 'board')
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo),
+            )
+            .get();
+
+        for (var doc in logsQuery.docs) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+          final dateKey =
+              '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+          dailyData[dateKey] = (dailyData[dateKey] ?? 0) + 1;
+        }
+      }
+
+      _setCache(cacheKey, dailyData);
+      return dailyData;
+    } catch (e) {
+      print('Error fetching daily trend: $e');
+      rethrow;
+    }
+  }
+
+  // ========== 3. WEEKLY PASSENGER HEATMAP WITH WEEK INFORMATION ==========
+  /// Returns data for heatmap with week information
+  /// Last 30 days grouped by week, day of week, and hour
+  Future<WeeklyHeatmapData> getWeeklyPassengerHeatmap(String companyId) async {
+    final cacheKey = 'weekly_heatmap_$companyId';
+
+    final cached = _getCached<WeeklyHeatmapData>(cacheKey);
+    if (cached != null) {
+      print('📦 Returning cached heatmap data');
+      return cached;
+    }
+
+    try {
+      print('🔍 Fetching heatmap data for company: $companyId');
+
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+
+      print('   Date range: ${thirtyDaysAgo.toString()} to ${now.toString()}');
+
+      final busesSnapshot = await _firestore
+          .collection('buses')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      print('   Found ${busesSnapshot.docs.length} buses');
+
+      if (busesSnapshot.docs.isEmpty) {
+        print('⚠️ No buses found for company');
+        return WeeklyHeatmapData(weeks: [], aggregatedData: {});
+      }
+
+      // Track data by week
+      final weeklyData = <int, Map<String, Map<int, int>>>{};
+      final weekLabels = <int, String>{};
       final dayNames = [
         'Monday',
         'Tuesday',
@@ -157,211 +211,268 @@ class DashboardAnalyticsService {
         'Sunday',
       ];
 
-      // Query each bus's logs
-      for (final busId in busIds) {
-        final logsQuery = await _firestore
-            .collection('buses')
-            .doc(busId)
-            .collection('bus_occupancy_logs')
-            .where('action_type', isEqualTo: 'board')
-            .where(
-              'timestamp',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
-            )
-            .where(
-              'timestamp',
-              isLessThan: Timestamp.fromDate(
-                startOfToday.add(const Duration(days: 1)),
-              ),
-            )
-            .get();
+      int totalLogs = 0;
 
-        for (var doc in logsQuery.docs) {
-          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
-          final dayOfWeek = timestamp.weekday;
-          final dayName = dayNames[dayOfWeek - 1];
-          weeklyData[dayName] = (weeklyData[dayName] ?? 0) + 1;
-        }
-      }
-
-      _setCache(cacheKey, weeklyData);
-      print(
-        'âœ… Weekly trend aggregated: ${weeklyData.values.fold(0, (a, b) => a + b)} total boardings',
-      );
-      return weeklyData;
-    } catch (e) {
-      print('âŒ Error fetching weekly trend: $e');
-      rethrow;
-    }
-  }
-
-  Map<String, int> _initializeWeeklyData() {
-    final dayNames = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ];
-    final data = <String, int>{};
-    for (var day in dayNames) {
-      data[day] = 0;
-    }
-    return data;
-  }
-
-  // ========== 3. PASSENGER DISTRIBUTION ALONG ROUTE ==========
-  /// CRITICAL FIX: Schema shows waypoints as array of strings, not objects
-  /// This requires the waypoint names to be matched against log data
-  /// NOTE: The schema notes mention this needs modification to store waypoint names in logs
-  Future<List<WaypointPassengerData>> getRoutePassengerDistribution(
-    String routeId,
-    String companyId,
-  ) async {
-    final cacheKey = 'route_distribution_${companyId}_$routeId';
-
-    final cached = _getCached<List<WaypointPassengerData>>(cacheKey);
-    if (cached != null) {
-      print('ðŸ“Š Using cached route distribution data');
-      return cached;
-    }
-
-    try {
-      print('ðŸ“Š Fetching route passenger distribution for route: $routeId');
-
-      // Get route document
-      final routeDoc = await _firestore.collection('routes').doc(routeId).get();
-
-      if (!routeDoc.exists) {
-        throw Exception('Route not found');
-      }
-
-      final routeData = routeDoc.data()!;
-
-      // SCHEMA FIX: waypoints is an array of strings
-      final waypoints = routeData['waypoints'] as List<dynamic>? ?? [];
-
-      if (waypoints.isEmpty) {
-        print('âš ï¸ No waypoints found for route');
-        return [];
-      }
-
-      print('ðŸ›£ï¸ Found ${waypoints.length} waypoints');
-
-      // Initialize waypoint data with string names
-      final waypointDataList = <WaypointPassengerData>[];
-      for (int i = 0; i < waypoints.length; i++) {
-        waypointDataList.add(
-          WaypointPassengerData(
-            waypointName: waypoints[i].toString(),
-            waypointIndex: i,
-            latitude: 0.0, // Not available in current schema
-            longitude: 0.0, // Not available in current schema
-            boardingCount: 0,
-            alightingCount: 0,
-          ),
-        );
-      }
-
-      // Get occupancy logs for this route (past 7 days)
-      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
-
-      // Get company's buses that are on this route
-      final busesSnapshot = await _firestore
-          .collection('buses')
-          .where('company_ID', isEqualTo: companyId)
-          .where('route_ID', isEqualTo: routeId)
-          .get();
-
-      if (busesSnapshot.docs.isEmpty) {
-        print('âš ï¸ No buses found on this route');
-        _setCache(cacheKey, waypointDataList);
-        return waypointDataList;
-      }
-
-      // Query logs for each bus
-      for (final busDoc in busesSnapshot.docs) {
+      for (var busDoc in busesSnapshot.docs) {
         final logsQuery = await _firestore
             .collection('buses')
             .doc(busDoc.id)
             .collection('bus_occupancy_logs')
-            .where('route_ID', isEqualTo: routeId)
+            .where('action_type', isEqualTo: 'board')
             .where(
               'timestamp',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(sevenDaysAgo),
+              isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo),
             )
             .get();
 
-        // LIMITATION: Without waypoint_name field in logs, we can't accurately
-        // map logs to waypoints. The schema document notes this needs to be added.
-        // For now, we'll use location-based proximity if available
+        print('   Bus ${busDoc.id}: ${logsQuery.docs.length} boarding logs');
+        totalLogs += logsQuery.docs.length;
+
         for (var doc in logsQuery.docs) {
-          final data = doc.data();
-          final actionType = data['action_type'] as String?;
-          final location = data['location'] as GeoPoint?;
+          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+          final weekNumber = _getWeekNumber(timestamp);
+          final dayOfWeek = dayNames[timestamp.weekday - 1];
+          final hour = timestamp.hour;
 
-          if (actionType == null || location == null) continue;
+          // Initialize week data if needed
+          if (!weeklyData.containsKey(weekNumber)) {
+            weeklyData[weekNumber] = {};
+            weekLabels[weekNumber] = _getWeekLabel(timestamp);
+            for (var day in dayNames) {
+              weeklyData[weekNumber]![day] = _initializeHourlyData();
+            }
+          }
 
-          // Since we don't have waypoint coordinates in schema,
-          // we can't match properly. This is a known limitation.
-          // Distribution will be empty until schema is updated with waypoint_name field
+          // Increment count
+          weeklyData[weekNumber]![dayOfWeek]![hour] =
+              (weeklyData[weekNumber]![dayOfWeek]![hour] ?? 0) + 1;
         }
       }
 
-      _setCache(cacheKey, waypointDataList);
-      print(
-        'âš ï¸ Route distribution limited: Schema needs waypoint_name field in logs',
+      print('   📊 Total boarding logs processed: $totalLogs');
+      print('   📅 Weeks with data: ${weeklyData.keys.toList()}');
+
+      // Create aggregated data (all weeks combined)
+      final aggregatedData = <String, Map<int, int>>{};
+      for (var day in dayNames) {
+        aggregatedData[day] = _initializeHourlyData();
+      }
+
+      for (var weekData in weeklyData.values) {
+        for (var day in dayNames) {
+          for (var hour = 0; hour < 24; hour++) {
+            aggregatedData[day]![hour] =
+                (aggregatedData[day]![hour] ?? 0) + (weekData[day]?[hour] ?? 0);
+          }
+        }
+      }
+
+      // Create week objects sorted by week number
+      final weeks = weeklyData.keys.toList()..sort();
+      final weekObjects = weeks.map((weekNum) {
+        return WeekHeatmapData(
+          weekNumber: weekNum,
+          weekLabel: weekLabels[weekNum]!,
+          data: weeklyData[weekNum]!,
+        );
+      }).toList();
+
+      print('   ✅ Created ${weekObjects.length} week objects');
+      print('   ✅ Aggregated data has ${aggregatedData.length} days');
+
+      // Sample output
+      if (aggregatedData.isNotEmpty) {
+        final mondayData = aggregatedData['Monday'];
+        final totalMonday =
+            mondayData?.values.fold(0, (sum, count) => sum + count) ?? 0;
+        print('   📈 Monday total across all weeks: $totalMonday passengers');
+      }
+
+      final result = WeeklyHeatmapData(
+        weeks: weekObjects,
+        aggregatedData: aggregatedData,
       );
-      return waypointDataList;
+
+      _setCache(cacheKey, result);
+      return result;
     } catch (e) {
-      print('âŒ Error fetching route distribution: $e');
+      print('❌ Error fetching weekly heatmap: $e');
+      print('Stack trace: ${StackTrace.current}');
       rethrow;
     }
   }
 
-  // ========== 4. BUS TYPE AVERAGE OCCUPANCY ==========
-  /// Optimized: Company-filtered trips with efficient aggregation
-  Future<Map<String, double>> getBusTypeAverageOccupancy(
+  // ========== 4. LOCATION BASED PASSENGER STATISTICS ==========
+  /// Grouped bar chart: boarding and alighting by waypoint (last 30 days)
+  Future<List<WaypointPassengerStats>> getLocationBasedPassengerStats(
     String companyId,
   ) async {
-    final cacheKey = 'bus_type_occupancy_$companyId';
+    final cacheKey = 'location_stats_$companyId';
 
-    final cached = _getCached<Map<String, double>>(cacheKey);
-    if (cached != null) {
-      print('ðŸ“Š Using cached bus type occupancy data');
-      return cached;
-    }
+    final cached = _getCached<List<WaypointPassengerStats>>(cacheKey);
+    if (cached != null) return cached;
 
     try {
-      print('ðŸ“Š Fetching bus type average occupancy for company: $companyId');
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
 
-      // Get company's buses with capacity info
       final busesSnapshot = await _firestore
           .collection('buses')
           .where('company_ID', isEqualTo: companyId)
           .get();
 
       if (busesSnapshot.docs.isEmpty) {
-        print('âš ï¸ No buses found for company');
-        return _initializeBusTypeData();
+        return [];
       }
 
-      print('ðŸšŒ Found ${busesSnapshot.docs.length} buses');
+      final waypointData = <String, Map<String, int>>{};
 
-      // Create bus lookup map
-      final busMap = <String, Map<String, dynamic>>{};
-      for (var doc in busesSnapshot.docs) {
-        final data = doc.data();
-        busMap[doc.id] = {
-          'total_capacity': data['total_capacity'] as int? ?? 50,
-          'bus_type': _inferBusType(data['total_capacity'] as int? ?? 50),
-        };
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo),
+            )
+            .get();
+
+        for (var doc in logsQuery.docs) {
+          final data = doc.data();
+          final actionType = data['action_type'] as String?;
+          final waypointName = data['waypoint_name'] as String? ?? 'Unknown';
+
+          if (!waypointData.containsKey(waypointName)) {
+            waypointData[waypointName] = {'boarding': 0, 'alighting': 0};
+          }
+
+          if (actionType == 'board') {
+            waypointData[waypointName]!['boarding'] =
+                (waypointData[waypointName]!['boarding'] ?? 0) + 1;
+          } else if (actionType == 'alight') {
+            waypointData[waypointName]!['alighting'] =
+                (waypointData[waypointName]!['alighting'] ?? 0) + 1;
+          }
+        }
       }
 
-      // Get completed trips (past 30 days)
+      final statsList = waypointData.entries.map((entry) {
+        return WaypointPassengerStats(
+          waypointName: entry.key,
+          totalBoardings: entry.value['boarding'] ?? 0,
+          totalAlightings: entry.value['alighting'] ?? 0,
+        );
+      }).toList();
+
+      statsList.sort(
+        (a, b) => (b.totalBoardings + b.totalAlightings).compareTo(
+          a.totalBoardings + a.totalAlightings,
+        ),
+      );
+
+      _setCache(cacheKey, statsList);
+      return statsList;
+    } catch (e) {
+      print('Error fetching location stats: $e');
+      rethrow;
+    }
+  }
+
+  // ========== 5. HOURLY PASSENGER TREND PER LOCATION ==========
+  Future<LocationHourlyTrend> getHourlyTrendPerLocation(
+    String companyId,
+    String waypointName,
+  ) async {
+    final cacheKey = 'location_hourly_${companyId}_$waypointName';
+
+    final cached = _getCached<LocationHourlyTrend>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
+      final now = DateTime.now();
+      final thirtyDaysAgo = now.subtract(const Duration(days: 30));
+
+      final busesSnapshot = await _firestore
+          .collection('buses')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      if (busesSnapshot.docs.isEmpty) {
+        return LocationHourlyTrend(
+          waypointName: waypointName,
+          boardingByHour: _initializeHourlyData(),
+          alightingByHour: _initializeHourlyData(),
+        );
+      }
+
+      final boardingByHour = _initializeHourlyData();
+      final alightingByHour = _initializeHourlyData();
+
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where('waypoint_name', isEqualTo: waypointName)
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(thirtyDaysAgo),
+            )
+            .get();
+
+        for (var doc in logsQuery.docs) {
+          final data = doc.data();
+          final timestamp = (data['timestamp'] as Timestamp).toDate();
+          final hour = timestamp.hour;
+          final actionType = data['action_type'] as String?;
+
+          if (actionType == 'board') {
+            boardingByHour[hour] = (boardingByHour[hour] ?? 0) + 1;
+          } else if (actionType == 'alight') {
+            alightingByHour[hour] = (alightingByHour[hour] ?? 0) + 1;
+          }
+        }
+      }
+
+      final result = LocationHourlyTrend(
+        waypointName: waypointName,
+        boardingByHour: boardingByHour,
+        alightingByHour: alightingByHour,
+      );
+
+      _setCache(cacheKey, result);
+      return result;
+    } catch (e) {
+      print('Error fetching location hourly trend: $e');
+      rethrow;
+    }
+  }
+
+  // ========== 6. PREFERRED BUS TYPE ==========
+  Future<Map<String, double>> getPreferredBusType(String companyId) async {
+    final cacheKey = 'preferred_bus_type_$companyId';
+
+    final cached = _getCached<Map<String, double>>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
       final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
+
+      final busesSnapshot = await _firestore
+          .collection('buses')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      if (busesSnapshot.docs.isEmpty) {
+        return {};
+      }
+
+      final busCapacities = <String, int>{};
+      for (var doc in busesSnapshot.docs) {
+        final capacity = doc.data()['total_capacity'] as int? ?? 0;
+        busCapacities[doc.id] = capacity;
+      }
 
       final tripsSnapshot = await _firestore
           .collection('trips')
@@ -373,158 +484,444 @@ class DashboardAnalyticsService {
           )
           .get();
 
-      print(
-        'ðŸŽ« Found ${tripsSnapshot.docs.length} completed trips in last 30 days',
-      );
-
-      // Aggregate occupancy by bus type
-      final busTypeData = <String, List<double>>{
-        'Small': [],
-        'Medium': [],
-        'Large': [],
-      };
+      final tripsByCapacity = <String, List<int>>{};
 
       for (var doc in tripsSnapshot.docs) {
         final tripData = doc.data();
         final busId = tripData['bus_ID'] as String?;
-        final finalPassengerCount =
-            tripData['final_passenger_count'] as int? ?? 0;
+        final finalCount = tripData['final_passenger_count'] as int? ?? 0;
 
-        if (busId == null || !busMap.containsKey(busId)) continue;
+        if (busId != null && busCapacities.containsKey(busId)) {
+          final capacity = busCapacities[busId]!;
+          final busType = _getBusTypeLabel(capacity);
 
-        final busData = busMap[busId]!;
-        final totalCapacity = busData['total_capacity'] as int;
-        final busType = busData['bus_type'] as String;
-
-        if (totalCapacity > 0) {
-          final occupancyPercentage =
-              (finalPassengerCount / totalCapacity) * 100;
-          busTypeData[busType]!.add(occupancyPercentage);
+          if (!tripsByCapacity.containsKey(busType)) {
+            tripsByCapacity[busType] = [];
+          }
+          tripsByCapacity[busType]!.add(finalCount);
         }
       }
 
-      // Calculate averages
-      final averageOccupancy = <String, double>{};
-
-      for (var entry in busTypeData.entries) {
-        final busType = entry.key;
-        final percentages = entry.value;
-
-        if (percentages.isEmpty) {
-          averageOccupancy[busType] = 0.0;
+      final averages = <String, double>{};
+      for (var entry in tripsByCapacity.entries) {
+        if (entry.value.isNotEmpty) {
+          final sum = entry.value.reduce((a, b) => a + b);
+          averages[entry.key] = sum / entry.value.length;
         } else {
-          final sum = percentages.reduce((a, b) => a + b);
-          averageOccupancy[busType] = sum / percentages.length;
+          averages[entry.key] = 0.0;
         }
       }
 
-      _setCache(cacheKey, averageOccupancy);
-      print('âœ… Bus type occupancy aggregated successfully');
-      return averageOccupancy;
+      _setCache(cacheKey, averages);
+      return averages;
     } catch (e) {
-      print('âŒ Error fetching bus type occupancy: $e');
+      print('Error fetching preferred bus type: $e');
       rethrow;
     }
   }
 
-  Map<String, double> _initializeBusTypeData() {
-    return {'Small': 0.0, 'Medium': 0.0, 'Large': 0.0};
+  // ========== 7. MONTHLY PASSENGER TREND ==========
+  Future<Map<String, int>> getMonthlyPassengerTrend(String companyId) async {
+    final cacheKey = 'monthly_trend_$companyId';
+
+    final cached = _getCached<Map<String, int>>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
+      final now = DateTime.now();
+      final twelveMonthsAgo = DateTime(now.year - 1, now.month, 1);
+
+      final busesSnapshot = await _firestore
+          .collection('buses')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      if (busesSnapshot.docs.isEmpty) {
+        return {};
+      }
+
+      final monthlyData = <String, int>{};
+
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where('action_type', isEqualTo: 'board')
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(twelveMonthsAgo),
+            )
+            .get();
+
+        for (var doc in logsQuery.docs) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+          final monthKey =
+              '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}';
+          monthlyData[monthKey] = (monthlyData[monthKey] ?? 0) + 1;
+        }
+      }
+
+      _setCache(cacheKey, monthlyData);
+      return monthlyData;
+    } catch (e) {
+      print('Error fetching monthly trend: $e');
+      rethrow;
+    }
   }
 
-  String _inferBusType(int capacity) {
-    if (capacity <= 30) return 'Small';
-    if (capacity <= 50) return 'Medium';
-    return 'Large';
+  // ========== 8. PEAK DAY OF EVERY MONTH ==========
+  Future<List<PeakDayData>> getPeakDayPerMonth(String companyId) async {
+    final cacheKey = 'peak_day_per_month_$companyId';
+
+    final cached = _getCached<List<PeakDayData>>(cacheKey);
+    if (cached != null) return cached;
+
+    try {
+      final now = DateTime.now();
+      final twelveMonthsAgo = DateTime(now.year - 1, now.month, 1);
+
+      final busesSnapshot = await _firestore
+          .collection('buses')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      if (busesSnapshot.docs.isEmpty) {
+        return [];
+      }
+
+      final monthlyDailyCounts = <String, Map<String, int>>{};
+
+      for (var busDoc in busesSnapshot.docs) {
+        final logsQuery = await _firestore
+            .collection('buses')
+            .doc(busDoc.id)
+            .collection('bus_occupancy_logs')
+            .where('action_type', isEqualTo: 'board')
+            .where(
+              'timestamp',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(twelveMonthsAgo),
+            )
+            .get();
+
+        for (var doc in logsQuery.docs) {
+          final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+          final monthKey =
+              '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}';
+          final dateKey =
+              '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+
+          if (!monthlyDailyCounts.containsKey(monthKey)) {
+            monthlyDailyCounts[monthKey] = {};
+          }
+          monthlyDailyCounts[monthKey]![dateKey] =
+              (monthlyDailyCounts[monthKey]![dateKey] ?? 0) + 1;
+        }
+      }
+
+      final peakDays = <PeakDayData>[];
+
+      for (var entry in monthlyDailyCounts.entries) {
+        final monthKey = entry.key;
+        final dailyCounts = entry.value;
+
+        if (dailyCounts.isEmpty) continue;
+
+        String peakDate = '';
+        int maxCount = 0;
+
+        for (var dayEntry in dailyCounts.entries) {
+          if (dayEntry.value > maxCount) {
+            maxCount = dayEntry.value;
+            peakDate = dayEntry.key;
+          }
+        }
+
+        int peakHour = await _findPeakHourForDate(
+          companyId,
+          peakDate,
+          busesSnapshot.docs,
+        );
+
+        peakDays.add(
+          PeakDayData(
+            month: monthKey,
+            peakDate: peakDate,
+            totalPassengers: maxCount,
+            peakHour: peakHour,
+          ),
+        );
+      }
+
+      peakDays.sort((a, b) => a.month.compareTo(b.month));
+
+      _setCache(cacheKey, peakDays);
+      return peakDays;
+    } catch (e) {
+      print('Error fetching peak days: $e');
+      rethrow;
+    }
   }
 
-  // ========== DASHBOARD SUMMARY - OPTIMIZED ==========
-  /// Uses count() queries for maximum efficiency
+  Future<int> _findPeakHourForDate(
+    String companyId,
+    String date,
+    List<QueryDocumentSnapshot> busDocs,
+  ) async {
+    final dateTime = DateTime.parse(date);
+    final startOfDay = DateTime(dateTime.year, dateTime.month, dateTime.day);
+    final endOfDay = startOfDay.add(const Duration(days: 1));
+
+    final hourCounts = _initializeHourlyData();
+
+    for (var busDoc in busDocs) {
+      final logsQuery = await _firestore
+          .collection('buses')
+          .doc(busDoc.id)
+          .collection('bus_occupancy_logs')
+          .where('action_type', isEqualTo: 'board')
+          .where(
+            'timestamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+          )
+          .where('timestamp', isLessThan: Timestamp.fromDate(endOfDay))
+          .get();
+
+      for (var doc in logsQuery.docs) {
+        final timestamp = (doc.data()['timestamp'] as Timestamp).toDate();
+        final hour = timestamp.hour;
+        hourCounts[hour] = (hourCounts[hour] ?? 0) + 1;
+      }
+    }
+
+    int peakHour = 0;
+    int maxCount = 0;
+    for (var entry in hourCounts.entries) {
+      if (entry.value > maxCount) {
+        maxCount = entry.value;
+        peakHour = entry.key;
+      }
+    }
+
+    return peakHour;
+  }
+
+  // ========== HELPER METHODS ==========
+
+  Map<int, int> _initializeHourlyData() {
+    final data = <int, int>{};
+    for (int i = 0; i < 24; i++) {
+      data[i] = 0;
+    }
+    return data;
+  }
+
+  String _getBusTypeLabel(int capacity) {
+    if (capacity <= 29) return '29-seater (Coaster)';
+    if (capacity <= 35) return '35-seater (Orange)';
+    if (capacity <= 45) return '45-seater (Deluxe)';
+    if (capacity <= 56) return '56-seater (Deluxe)';
+    if (capacity <= 57) return '57-seater (Deluxe)';
+    return 'Other';
+  }
+
   Future<Map<String, dynamic>> getDashboardSummary(String companyId) async {
     final cacheKey = 'dashboard_summary_$companyId';
 
-    final cached = _getCached<Map<String, dynamic>>(cacheKey);
-    if (cached != null) {
-      print('ðŸ“Š Using cached dashboard summary');
-      return cached;
-    }
-
     try {
-      print('ðŸ“Š Fetching dashboard summary for company: $companyId');
-
-      // OPTIMIZATION: Use count() queries - only 1 document read each!
-      final busesCountFuture = _firestore
+      final busesSnapshot = await _firestore
           .collection('buses')
           .where('company_ID', isEqualTo: companyId)
-          .count()
           .get();
 
-      final routesCountFuture = _firestore
+      if (busesSnapshot.docs.isEmpty) {
+        final allBusesSnapshot = await _firestore
+            .collection('buses')
+            .limit(5)
+            .get();
+
+        if (allBusesSnapshot.docs.isNotEmpty) {
+          for (var doc in allBusesSnapshot.docs) {
+            final data = doc.data();
+            print('      - Bus ID: ${doc.id}');
+            print('        company_ID field: "${data['company_ID']}"');
+            print('        company_ID type: ${data['company_ID'].runtimeType}');
+            print(
+              '        Matches your companyId? ${data['company_ID'] == companyId}',
+            );
+          }
+        } else {}
+      } else {
+        print('   ✅ Found buses for this company');
+        print(
+          '   🔍 Sample bus IDs: ${busesSnapshot.docs.take(3).map((d) => d.id).toList()}',
+        );
+      }
+      print('');
+
+      // ========== ROUTES QUERY ==========
+      print('🛣️  QUERYING ROUTES...');
+      final routesSnapshot = await _firestore
           .collection('routes')
           .where('company_ID', isEqualTo: companyId)
-          .count()
           .get();
 
+      print('   ✅ Routes query completed');
+      print('   📊 Total documents returned: ${routesSnapshot.docs.length}');
+
+      if (routesSnapshot.docs.isEmpty) {
+        print('   ⚠️  NO ROUTES FOUND - Checking why...');
+        final allRoutesSnapshot = await _firestore
+            .collection('routes')
+            .limit(5)
+            .get();
+
+        print(
+          '   📊 Total routes in entire collection: ${allRoutesSnapshot.docs.length}',
+        );
+
+        if (allRoutesSnapshot.docs.isNotEmpty) {
+          print('   🔍 Sample route data:');
+          for (var doc in allRoutesSnapshot.docs) {
+            final data = doc.data();
+            print('      - Route ID: ${doc.id}');
+            print('        company_ID field: "${data['company_ID']}"');
+            print('        company_ID type: ${data['company_ID'].runtimeType}');
+            print(
+              '        Matches your companyId? ${data['company_ID'] == companyId}',
+            );
+            print('        route_name: ${data['route_name']}');
+          }
+        } else {
+          print('   ⚠️  NO ROUTES EXIST IN THE ENTIRE COLLECTION!');
+        }
+      } else {
+        print('   ✅ Found routes for this company');
+        print(
+          '   🔍 Sample route IDs: ${routesSnapshot.docs.take(3).map((d) => d.id).toList()}',
+        );
+      }
+      print('');
+
+      // ========== TRIPS QUERY (with error handling) ==========
+      print('🎫 QUERYING ACTIVE TRIPS...');
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day);
 
-      final activeTripsCountFuture = _firestore
-          .collection('trips')
-          .where('company_ID', isEqualTo: companyId)
-          .where('current_status', isEqualTo: 'active')
-          .where(
-            'start_time',
-            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
-          )
-          .count()
-          .get();
+      print('   📅 Today: $today');
+      print('   📅 Start of day: $startOfDay');
 
-      // Execute all count queries in parallel
-      final results = await Future.wait([
-        busesCountFuture,
-        routesCountFuture,
-        activeTripsCountFuture,
-      ]);
+      int activeTripsCount = 0;
+
+      try {
+        final activeTripsSnapshot = await _firestore
+            .collection('trips')
+            .where('company_ID', isEqualTo: companyId)
+            .where('current_status', isEqualTo: 'active')
+            .where(
+              'start_time',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay),
+            )
+            .get();
+
+        activeTripsCount = activeTripsSnapshot.docs.length;
+        print('   ✅ Active trips query completed');
+        print('   📊 Total documents returned: $activeTripsCount');
+
+        if (activeTripsSnapshot.docs.isEmpty) {
+          print('   ⚠️  NO ACTIVE TRIPS FOUND - Checking why...');
+          final allCompanyTripsSnapshot = await _firestore
+              .collection('trips')
+              .where('company_ID', isEqualTo: companyId)
+              .limit(5)
+              .get();
+
+          print(
+            '   📊 Total trips for this company: ${allCompanyTripsSnapshot.docs.length}',
+          );
+
+          if (allCompanyTripsSnapshot.docs.isNotEmpty) {
+            print('   🔍 Sample trip data:');
+            for (var doc in allCompanyTripsSnapshot.docs) {
+              final data = doc.data();
+              print('      - Trip ID: ${doc.id}');
+              print('        current_status: ${data['current_status']}');
+              print('        start_time: ${data['start_time']}');
+            }
+          } else {
+            print('   ⚠️  NO TRIPS EXIST FOR THIS COMPANY!');
+          }
+        } else {
+          print('   ✅ Found active trips for today');
+        }
+      } catch (tripsError) {
+        print(
+          '   ⚠️  TRIPS QUERY FAILED (but continuing with buses & routes data)',
+        );
+        print('   Error: $tripsError');
+
+        // Check if it's the missing index error
+        if (tripsError.toString().contains('requires an index')) {
+          print('   💡 ACTION REQUIRED: Create a Firestore composite index');
+          print(
+            '   The trips query needs: company_ID + current_status + start_time',
+          );
+          print(
+            '   Click the URL in the error message to create the index automatically',
+          );
+        }
+
+        activeTripsCount = 0; // Default to 0 on error
+      }
 
       final summary = {
-        'total_buses': results[0].count ?? 0,
-        'total_routes': results[1].count ?? 0,
-        'active_trips_today': results[2].count ?? 0,
+        'total_buses': busesSnapshot.docs.length,
+        'total_routes': routesSnapshot.docs.length,
+        'active_trips_today': activeTripsCount,
       };
-
       _setCache(cacheKey, summary);
-      print('âœ… Dashboard summary fetched with only 3 reads!');
       return summary;
-    } catch (e) {
-      print('âŒ Error fetching dashboard summary: $e');
+    } catch (e, stackTrace) {
+      print('Error: $e');
+      print(stackTrace);
       return {'total_buses': 0, 'total_routes': 0, 'active_trips_today': 0};
     }
   }
 
-  double _calculateDistance(
-    double lat1,
-    double lon1,
-    double lat2,
-    double lon2,
-  ) {
-    const earthRadiusKm = 6371.0;
-    final dLat = _degreesToRadians(lat2 - lat1);
-    final dLon = _degreesToRadians(lon2 - lon1);
+  Future<List<String>> getWaypointsList(String companyId) async {
+    final cacheKey = 'waypoints_list_$companyId';
 
-    final a =
-        math.sin(dLat / 2) * math.sin(dLat / 2) +
-        math.cos(_degreesToRadians(lat1)) *
-            math.cos(_degreesToRadians(lat2)) *
-            math.sin(dLon / 2) *
-            math.sin(dLon / 2);
+    final cached = _getCached<List<String>>(cacheKey);
+    if (cached != null) return cached;
 
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return earthRadiusKm * c;
-  }
+    try {
+      final routesSnapshot = await _firestore
+          .collection('routes')
+          .where('company_ID', isEqualTo: companyId)
+          .get();
 
-  double _degreesToRadians(double degrees) {
-    return degrees * math.pi / 180;
+      final waypointsSet = <String>{};
+
+      for (var doc in routesSnapshot.docs) {
+        final waypoints = doc.data()['waypoints'] as List<dynamic>? ?? [];
+        for (var waypoint in waypoints) {
+          if (waypoint is String && waypoint.isNotEmpty) {
+            waypointsSet.add(waypoint);
+          }
+        }
+      }
+
+      final waypointsList = waypointsSet.toList()..sort();
+      _setCache(cacheKey, waypointsList);
+      return waypointsList;
+    } catch (e) {
+      print('Error fetching waypoints: $e');
+      return [];
+    }
   }
 }
+
+// ========== DATA MODELS ==========
 
 class _CachedData {
   final dynamic data;
@@ -533,22 +930,63 @@ class _CachedData {
   _CachedData({required this.data, required this.timestamp});
 }
 
-class WaypointPassengerData {
+class WaypointPassengerStats {
   final String waypointName;
-  final int waypointIndex;
-  final double latitude;
-  final double longitude;
-  int boardingCount;
-  int alightingCount;
+  final int totalBoardings;
+  final int totalAlightings;
 
-  WaypointPassengerData({
+  WaypointPassengerStats({
     required this.waypointName,
-    required this.waypointIndex,
-    required this.latitude,
-    required this.longitude,
-    required this.boardingCount,
-    required this.alightingCount,
+    required this.totalBoardings,
+    required this.totalAlightings,
   });
 
-  int get netPassengers => boardingCount - alightingCount;
+  int get totalActivity => totalBoardings + totalAlightings;
+}
+
+class LocationHourlyTrend {
+  final String waypointName;
+  final Map<int, int> boardingByHour;
+  final Map<int, int> alightingByHour;
+
+  LocationHourlyTrend({
+    required this.waypointName,
+    required this.boardingByHour,
+    required this.alightingByHour,
+  });
+}
+
+class PeakDayData {
+  final String month;
+  final String peakDate;
+  final int totalPassengers;
+  final int peakHour;
+
+  PeakDayData({
+    required this.month,
+    required this.peakDate,
+    required this.totalPassengers,
+    required this.peakHour,
+  });
+}
+
+// ========== NEW MODELS FOR WEEKLY HEATMAP ==========
+
+class WeekHeatmapData {
+  final int weekNumber;
+  final String weekLabel; // e.g., "Week 48 (11/25 - 12/1)"
+  final Map<String, Map<int, int>> data; // Day -> Hour -> Count
+
+  WeekHeatmapData({
+    required this.weekNumber,
+    required this.weekLabel,
+    required this.data,
+  });
+}
+
+class WeeklyHeatmapData {
+  final List<WeekHeatmapData> weeks;
+  final Map<String, Map<int, int>> aggregatedData; // All weeks combined
+
+  WeeklyHeatmapData({required this.weeks, required this.aggregatedData});
 }

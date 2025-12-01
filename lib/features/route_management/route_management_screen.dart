@@ -881,6 +881,21 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
     );
   }
 
+  Widget _buildHeaderCell(String label, bool isDark, {required int flex}) {
+    const cellHPad = 12.0;
+
+    return Expanded(
+      flex: flex,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: cellHPad),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _buildHeaderLabel(label, isDark),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRoutesTable(
     bool isDark,
     bool isMobile,
@@ -918,25 +933,25 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(flex: 3, child: _buildHeaderLabel('ROUTE', isDark)),
-                Expanded(
-                  flex: 3,
-                  child: _buildHeaderLabel('ORIGIN - DESTINATION', isDark),
+                _buildHeaderCell('ROUTE', isDark, flex: 2),
+                _buildHeaderCell('', isDark, flex: 1),
+                _buildHeaderCell('ORIGIN -> DESTINATION', isDark, flex: 3),
+                _buildHeaderCell('TRAVEL TIME', isDark, flex: 2),
+                _buildHeaderCell('ASSIGNED BUSES', isDark, flex: 2),
+                _buildHeaderCell('STATUS', isDark, flex: 2),
+                SizedBox(
+                  width: 56,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _buildHeaderLabel('ACTION', isDark),
+                  ),
                 ),
-                Expanded(
-                  flex: 2,
-                  child: _buildHeaderLabel('TRAVEL TIME', isDark),
-                ),
-                Expanded(
-                  flex: 2,
-                  child: _buildHeaderLabel('ASSIGNED BUSES', isDark),
-                ),
-                Expanded(flex: 2, child: _buildHeaderLabel('STATUS', isDark)),
-                SizedBox(width: 80, child: _buildHeaderLabel('ACTION', isDark)),
               ],
             ),
           ),
+
           // Table Body
           ...routeProvider.filteredRoutes.asMap().entries.map((entry) {
             return _buildTableRow(
@@ -963,6 +978,18 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
   }
 
   Widget _buildTableRow(RouteModel route, bool isDark, bool isLast) {
+    const cellHPad = 12.0;
+
+    Widget cell({required int flex, required Widget child}) {
+      return Expanded(
+        flex: flex,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: cellHPad),
+          child: Align(alignment: Alignment.centerLeft, child: child),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSizes.xl,
@@ -980,9 +1007,11 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
             : null,
       ),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Route Info with Icon
-          Expanded(
+          // ROUTE INFO
+          cell(
             flex: 3,
             child: Row(
               children: [
@@ -1003,9 +1032,11 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         route.routeName,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -1044,26 +1075,27 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
               ],
             ),
           ),
-          // Origin - Destination
-          Expanded(
+
+          // ORIGIN -> DESTINATION
+          cell(
             flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Expanded(
-                      child: Text(
-                        route.originName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isDark
-                              ? AppColors.textPrimaryDark
-                              : const Color(0xFF374151),
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      route.originName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : const Color(0xFF374151),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1073,18 +1105,16 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
                         color: AppColors.success,
                       ),
                     ),
-                    Expanded(
-                      child: Text(
-                        route.destinationName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isDark
-                              ? AppColors.textPrimaryDark
-                              : const Color(0xFF374151),
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    Text(
+                      route.destinationName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : const Color(0xFF374151),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -1103,8 +1133,9 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
               ],
             ),
           ),
-          // Travel Time
-          Expanded(
+
+          // TRAVEL TIME
+          cell(
             flex: 2,
             child: Row(
               children: [
@@ -1128,15 +1159,24 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
               ],
             ),
           ),
-          // Assigned Buses
-          Expanded(
+
+          // ASSIGNED BUSES
+          cell(
             flex: 2,
             child: _buildAssignedBusesBadge(route.assignedBuses.length, isDark),
           ),
-          // Status
-          Expanded(flex: 2, child: _buildStatusBadge(route.isActive, isDark)),
-          // Actions
-          SizedBox(width: 80, child: _buildActionsMenu(route)),
+
+          // STATUS
+          cell(flex: 2, child: _buildStatusBadge(route.isActive, isDark)),
+
+          // ACTIONS
+          SizedBox(
+            width: 56,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildActionsMenu(route),
+            ),
+          ),
         ],
       ),
     );
@@ -1218,13 +1258,14 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
             isActive ? Icons.check_circle : Icons.cancel,
             size: 14,
             color: isActive ? const Color(0xFF065f46) : AppColors.error,
+            fontWeight: FontWeight.bold,
           ),
           const SizedBox(width: 6),
           Text(
             isActive ? 'Active' : 'Inactive',
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
               color: isActive ? const Color(0xFF065f46) : AppColors.error,
             ),
           ),

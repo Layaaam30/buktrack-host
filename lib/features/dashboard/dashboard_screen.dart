@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:tabler_icons/tabler_icons.dart';
+import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../shared/widgets/common/stat_card.dart';
+
+import 'package:google_fonts/google_fonts.dart';
 import '../auth/auth_provider.dart';
 import 'dashboard_analytics_provider.dart';
 import 'dashboard_analytics_service.dart';
-import 'package:tabler_icons/tabler_icons.dart';
 
+/// Comprehensive Dashboard Screen
+/// Implements all analytics visualizations from CAPSTONE.pdf
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -76,10 +81,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header
                 _buildEnhancedHeader(isDark, isMobile, analyticsProvider),
 
                 const SizedBox(height: AppSizes.xxl),
 
+                // Summary Stats
                 _buildSummaryStatsGrid(isMobile, analyticsProvider, isDark),
 
                 const SizedBox(height: AppSizes.xxxl),
@@ -89,14 +96,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 else if (analyticsProvider.error != null)
                   _buildErrorState(analyticsProvider.error!, isDark)
                 else ...[
-                  _buildChartsRow(isMobile, [
-                    _buildHourlyTrendChart(analyticsProvider, isDark),
-                    _buildWeeklyTrendChart(analyticsProvider, isDark),
-                  ]),
-
-                  const SizedBox(height: AppSizes.xxl),
-
-                  _buildBusTypeOccupancyChart(
+                  // Section 1: Passenger Trends with Time Period Filter
+                  _buildPassengerTrendsSection(
                     analyticsProvider,
                     isDark,
                     isMobile,
@@ -104,14 +105,46 @@ class _DashboardScreenState extends State<DashboardScreen>
 
                   const SizedBox(height: AppSizes.xxl),
 
-                  _buildRouteDistributionSection(
+                  // Section 2: Weekly Heatmap
+                  _buildWeeklyHeatmapSection(
                     analyticsProvider,
                     isDark,
                     isMobile,
                   ),
+
+                  const SizedBox(height: AppSizes.xxl),
+
+                  // Section 3: Location-Based Statistics
+                  _buildLocationStatsSection(
+                    analyticsProvider,
+                    isDark,
+                    isMobile,
+                  ),
+
+                  const SizedBox(height: AppSizes.xxl),
+
+                  // Section 4: Location Hourly Trend (with dropdown)
+                  _buildLocationHourlyTrendSection(
+                    analyticsProvider,
+                    isDark,
+                    isMobile,
+                  ),
+
+                  const SizedBox(height: AppSizes.xxl),
+
+                  // Section 5: Preferred Bus Type
+                  _buildPreferredBusTypeSection(
+                    analyticsProvider,
+                    isDark,
+                    isMobile,
+                  ),
+
+                  const SizedBox(height: AppSizes.xxl),
+
+                  // Section 6: Peak Days Per Month
+                  _buildPeakDaysSection(analyticsProvider, isDark, isMobile),
                 ],
 
-                // Bottom spacing
                 const SizedBox(height: AppSizes.xxl),
               ],
             ),
@@ -121,38 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildAnimatedDashboardIcon() {
-    return AnimatedBuilder(
-      animation: _bounceAnimation,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, _bounceAnimation.value),
-          child: Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(AppSizes.radiusXl),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: const Icon(
-              TablerIcons.chart_bar,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
+  // ========== HEADER ==========
   Widget _buildEnhancedHeader(
     bool isDark,
     bool isMobile,
@@ -231,98 +233,99 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildRefreshButton(DashboardAnalyticsProvider analyticsProvider) {
+  Widget _buildAnimatedDashboardIcon() {
+    return AnimatedBuilder(
+      animation: _bounceAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _bounceAnimation.value),
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Icon(
+              TablerIcons.chart_bar,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRefreshButton(DashboardAnalyticsProvider provider) {
     return ElevatedButton.icon(
-      onPressed: () => analyticsProvider.refreshAllData(),
-      icon: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: const Color(0xFFdbeafe),
-          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-        ),
-        child: const Icon(
-          TablerIcons.refresh,
-          color: Color(0xFF2563eb),
-          size: 20,
-        ),
-      ),
-      label: const Text(
-        'Refresh Data',
-        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-      ),
+      onPressed: provider.isLoading ? null : () => provider.refreshAllData(),
+      icon: const Icon(TablerIcons.refresh, size: 20),
+      label: const Text('Refresh Data'),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF2563eb),
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppSizes.xl,
-          vertical: AppSizes.lg,
-        ),
+        foregroundColor: const Color(0xFF4f46e5),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
         ),
-        elevation: 0,
       ),
     );
   }
 
+  // ========== SUMMARY STATS GRID ==========
   Widget _buildSummaryStatsGrid(
     bool isMobile,
-    DashboardAnalyticsProvider analyticsProvider,
+    DashboardAnalyticsProvider provider,
     bool isDark,
   ) {
-    final summary = analyticsProvider.dashboardSummary ?? {};
+    final summary = provider.dashboardSummary ?? {};
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        int crossAxisCount = 4;
-        if (constraints.maxWidth < AppSizes.mobileBreakpoint) {
-          crossAxisCount = 1;
-        } else if (constraints.maxWidth < AppSizes.desktopBreakpoint) {
-          crossAxisCount = 2;
-        }
+        final crossAxisCount = isMobile
+            ? 1
+            : (constraints.maxWidth > 1200 ? 4 : 2);
 
         return GridView.count(
+          crossAxisCount: crossAxisCount,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: crossAxisCount,
-          crossAxisSpacing: AppSizes.xl,
-          mainAxisSpacing: AppSizes.xl,
-          childAspectRatio: isMobile ? 2.5 : 1.5,
+          crossAxisSpacing: AppSizes.lg,
+          mainAxisSpacing: AppSizes.lg,
+          childAspectRatio: isMobile ? 2.5 : 2.2,
           children: [
             StatCard(
               title: 'Total Buses',
               value: '${summary['total_buses'] ?? 0}',
               icon: TablerIcons.bus,
-              color: AppColors.info,
-              subtitle: 'Fleet size',
-              isLoading: analyticsProvider.isLoading,
+              color: AppColors.primary,
             ),
             StatCard(
-              title: 'Active Trips',
-              value: '${summary['active_trips_today'] ?? 0}',
+              title: 'Active Routes',
+              value: '${summary['total_routes'] ?? 0}',
               icon: TablerIcons.route,
               color: AppColors.success,
-              subtitle: 'Today',
-              isLoading: analyticsProvider.isLoading,
+            ),
+            StatCard(
+              title: 'Active Trips Today',
+              value: '${summary['active_trips_today'] ?? 0}',
+              icon: TablerIcons.map_pin,
+              color: AppColors.warning,
             ),
             StatCard(
               title: 'Passengers Today',
-              value: '${analyticsProvider.totalPassengersToday}',
+              value: '${provider.totalPassengersToday}',
               icon: TablerIcons.users,
-              color: AppColors.primary,
-              subtitle: 'Total boardings',
-              isLoading: analyticsProvider.isLoading,
-            ),
-            StatCard(
-              title: 'Peak Hour',
-              value: analyticsProvider.peakHour != null
-                  ? '${analyticsProvider.peakHour}:00'
-                  : '--',
-              icon: TablerIcons.clock,
-              color: AppColors.warning,
-              subtitle: 'Busiest time',
-              isLoading: analyticsProvider.isLoading,
+              color: AppColors.info,
             ),
           ],
         );
@@ -330,324 +333,420 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildChartsRow(bool isMobile, List<Widget> charts) {
-    if (isMobile) {
-      return Column(
-        children: charts
-            .map(
-              (chart) => Padding(
-                padding: const EdgeInsets.only(bottom: AppSizes.xxl),
-                child: chart,
-              ),
-            )
-            .toList(),
+  // ========== SECTION 1: PASSENGER TRENDS WITH FILTER ==========
+  Widget _buildPassengerTrendsSection(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+    bool isMobile,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Passenger Trend',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontSizeLg,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'View passenger boarding trends by time period',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontSizeSm,
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                _buildTimePeriodFilter(provider, isDark),
+              ],
+            ),
+            const SizedBox(height: AppSizes.lg),
+            SizedBox(height: 350, child: _buildTrendChart(provider, isDark)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimePeriodFilter(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+  ) {
+    return DropdownButton<String>(
+      value: provider.selectedTimePeriod,
+      items: const [
+        DropdownMenuItem(value: 'today', child: Text('Today (Hourly)')),
+        DropdownMenuItem(value: 'daily', child: Text('Last 30 Days (Daily)')),
+        DropdownMenuItem(value: 'monthly', child: Text('Last 12 Months')),
+      ],
+      onChanged: (value) {
+        if (value != null) {
+          provider.setTimePeriod(value);
+        }
+      },
+      underline: Container(),
+      style: TextStyle(
+        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        fontFamily: GoogleFonts.poppins().fontFamily,
+      ),
+      dropdownColor: isDark ? AppColors.backgroundDark : Colors.white,
+    );
+  }
+
+  Widget _buildTrendChart(DashboardAnalyticsProvider provider, bool isDark) {
+    final period = provider.selectedTimePeriod;
+
+    if (period == 'today') {
+      return _buildHourlyTrendChart(
+        provider.liveHourlyTrend,
+        isDark,
+        'Live - Today',
       );
+    } else if (period == 'daily') {
+      return _buildDailyTrendChart(provider.dailyTrend30Days, isDark);
+    } else if (period == 'monthly') {
+      return _buildMonthlyLineChart(provider.monthlyTrend, isDark);
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: charts
-          .map(
-            (chart) => Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: AppSizes.xl),
-                child: chart,
-              ),
-            ),
-          )
-          .toList(),
-    );
+    return const Center(child: Text('No data'));
   }
 
-  // ========== 1. HOURLY TREND CHART ==========
   Widget _buildHourlyTrendChart(
-    DashboardAnalyticsProvider provider,
+    Map<int, int>? data,
     bool isDark,
+    String title,
   ) {
-    final data = provider.hourlyTrend;
+    if (data == null || data.isEmpty) {
+      return _buildNoDataPlaceholder('No hourly data available', isDark);
+    }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Daily Passenger Trend',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontSizeLg,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.textPrimaryDark
-                            : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    const SizedBox(height: AppSizes.xs),
-                    Text(
-                      'Boardings by hour (Today)',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontSizeSm,
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 20),
-                  onPressed: () => provider.refreshHourlyTrend(),
-                ),
-              ],
+    final spots = data.entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+        .toList();
+
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: AppColors.primary,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.primary.withOpacity(0.1),
             ),
-            const SizedBox(height: AppSizes.xxl),
-            if (data == null || data.isEmpty)
-              _buildNoDataPlaceholder('No boarding data for today', isDark)
-            else
-              SizedBox(
-                height: 300,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 1,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight,
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) => Text(
-                            value.toInt().toString(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight,
-                            ),
-                          ),
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: 2,
-                          getTitlesWidget: (value, meta) => Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(
-                              '${value.toInt()}h',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondaryLight,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: data.entries
-                            .map(
-                              (e) =>
-                                  FlSpot(e.key.toDouble(), e.value.toDouble()),
-                            )
-                            .toList(),
-                        isCurved: true,
-                        color: AppColors.primary,
-                        barWidth: 3,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppColors.primary.withOpacity(0.1),
-                        ),
-                      ),
-                    ],
-                    minX: 0,
-                    maxX: 23,
-                    minY: 0,
+          ),
+        ],
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 2,
+              getTitlesWidget: (value, meta) => Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '${value.toInt()}h',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
                   ),
                 ),
               ),
-          ],
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((spot) {
+              return LineTooltipItem(
+                '${spot.x.toInt()}:00\n${spot.y.toInt()} passengers',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 
-  // ========== 2. WEEKLY TREND CHART ==========
-  Widget _buildWeeklyTrendChart(
-    DashboardAnalyticsProvider provider,
-    bool isDark,
-  ) {
-    final data = provider.weeklyTrend;
+  Widget _buildDailyTrendChart(Map<String, int>? data, bool isDark) {
+    if (data == null || data.isEmpty) {
+      return _buildNoDataPlaceholder('No daily data available', isDark);
+    }
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.cardPadding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Weekly Passenger Trend',
+    // Sort by date
+    final sortedEntries = data.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    final spots = sortedEntries
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.value.toDouble()))
+        .toList();
+
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: AppColors.success,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.success.withOpacity(0.1),
+            ),
+          ),
+        ],
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: (sortedEntries.length / 6).ceil().toDouble(),
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 &&
+                    value.toInt() < sortedEntries.length) {
+                  final date = DateTime.parse(sortedEntries[value.toInt()].key);
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      DateFormat('MMM d').format(date),
                       style: TextStyle(
-                        fontSize: AppSizes.fontSizeLg,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.textPrimaryDark
-                            : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    const SizedBox(height: AppSizes.xs),
-                    Text(
-                      'Boardings by day (Past 7 days)',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontSizeSm,
+                        fontSize: 12,
                         color: isDark
                             ? AppColors.textSecondaryDark
                             : AppColors.textSecondaryLight,
                       ),
                     ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 20),
-                  onPressed: () => provider.refreshWeeklyTrend(),
-                ),
-              ],
+                  );
+                }
+                return const Text('');
+              },
             ),
-            const SizedBox(height: AppSizes.xxl),
-            if (data == null || data.isEmpty)
-              _buildNoDataPlaceholder('No boarding data for this week', isDark)
-            else
-              SizedBox(
-                height: 300,
-                child: LineChart(
-                  LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 1,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight,
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) => Text(
-                            value.toInt().toString(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight,
-                            ),
-                          ),
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            final days = [
-                              'Mon',
-                              'Tue',
-                              'Wed',
-                              'Thu',
-                              'Fri',
-                              'Sat',
-                              'Sun',
-                            ];
-                            if (value.toInt() >= 0 &&
-                                value.toInt() < days.length) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Text(
-                                  days[value.toInt()],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight,
-                                  ),
-                                ),
-                              );
-                            }
-                            return const Text('');
-                          },
-                        ),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _weeklyDataToSpots(data),
-                        isCurved: true,
-                        color: AppColors.success,
-                        barWidth: 3,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: true),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppColors.success.withOpacity(0.1),
-                        ),
-                      ),
-                    ],
-                    minX: 0,
-                    maxX: 6,
-                    minY: 0,
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((spot) {
+              if (spot.spotIndex >= 0 &&
+                  spot.spotIndex < sortedEntries.length) {
+                final date = DateTime.parse(sortedEntries[spot.spotIndex].key);
+                return LineTooltipItem(
+                  '${DateFormat('MMM d').format(date)}\n${spot.y.toInt()} passengers',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
-                ),
-              ),
-          ],
+                );
+              }
+              return null;
+            }).toList(),
+          ),
         ),
       ),
     );
   }
 
-  List<FlSpot> _weeklyDataToSpots(Map<String, int> data) {
-    final dayOrder = [
+  Widget _buildMonthlyLineChart(Map<String, int>? data, bool isDark) {
+    if (data == null || data.isEmpty) {
+      return _buildNoDataPlaceholder('No monthly data available', isDark);
+    }
+
+    final sortedEntries = data.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    final spots = sortedEntries
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.value.toDouble()))
+        .toList();
+
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          LineChartBarData(
+            spots: spots,
+            isCurved: true,
+            color: AppColors.info,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.info.withOpacity(0.1),
+            ),
+          ),
+        ],
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                '${(value / 1000).toStringAsFixed(0)}k',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 &&
+                    value.toInt() < sortedEntries.length) {
+                  final monthKey = sortedEntries[value.toInt()].key;
+                  final date = DateTime.parse('$monthKey-01');
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      DateFormat('MMM').format(date),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((spot) {
+              if (spot.spotIndex >= 0 &&
+                  spot.spotIndex < sortedEntries.length) {
+                final monthKey = sortedEntries[spot.spotIndex].key;
+                final date = DateTime.parse('$monthKey-01');
+                return LineTooltipItem(
+                  '${DateFormat('MMM yyyy').format(date)}\n${spot.y.toInt()} passengers',
+                  const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                );
+              }
+              return null;
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeatmap(Map<String, Map<int, int>> data, bool isDark) {
+    final dayNames = [
       'Monday',
       'Tuesday',
       'Wednesday',
@@ -656,24 +755,830 @@ class _DashboardScreenState extends State<DashboardScreen>
       'Saturday',
       'Sunday',
     ];
-    final spots = <FlSpot>[];
 
-    for (int i = 0; i < dayOrder.length; i++) {
-      final count = data[dayOrder[i]] ?? 0;
-      spots.add(FlSpot(i.toDouble(), count.toDouble()));
+    // Find max value for color scaling
+    int maxValue = 0;
+    for (var dayData in data.values) {
+      for (var value in dayData.values) {
+        if (value > maxValue) maxValue = value;
+      }
     }
 
-    return spots;
+    const double cellSize = 34.0;
+    const double dayLabelWidth = 120.0;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Day labels column
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: cellSize, width: dayLabelWidth),
+                ...dayNames.map(
+                  (day) => Container(
+                    height: cellSize,
+                    width: dayLabelWidth,
+                    padding: const EdgeInsets.only(right: 15),
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      day,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Heatmap grid
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Hour labels row - exactly 24 hours
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(24, (hour) {
+                    String label;
+                    if (hour == 0) {
+                      label = '12AM';
+                    } else if (hour < 12) {
+                      label = '${hour}AM';
+                    } else if (hour == 12) {
+                      label = '12PM';
+                    } else {
+                      label = '${hour - 12}PM';
+                    }
+
+                    return SizedBox(
+                      width: cellSize,
+                      height: cellSize,
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                // Heatmap cells - exactly 7 rows (one per day)
+                ...dayNames.map((day) {
+                  final dayData = data[day] ?? {};
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(24, (hour) {
+                      final value = dayData[hour] ?? 0;
+                      final intensity = maxValue > 0 ? value / maxValue : 0.0;
+
+                      return Container(
+                        width: cellSize - 2,
+                        height: cellSize - 2,
+                        margin: const EdgeInsets.all(1),
+                        decoration: BoxDecoration(
+                          color: _getHeatmapColor(intensity, isDark),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Center(
+                          child: value > 0
+                              ? Text(
+                                  value.toString(),
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: intensity > 0.5
+                                        ? Colors.white
+                                        : (isDark
+                                              ? Colors.white70
+                                              : Colors.black87),
+                                  ),
+                                )
+                              : null,
+                        ),
+                      );
+                    }),
+                  );
+                }),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  // ========== 4. BUS TYPE OCCUPANCY CHART ==========
-  Widget _buildBusTypeOccupancyChart(
+  Color _getHeatmapColor(double intensity, bool isDark) {
+    if (intensity == 0) {
+      return isDark ? Colors.grey.shade800 : Colors.grey.shade100;
+    }
+
+    final baseColor = AppColors.primary;
+    return Color.lerp(
+      isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+      baseColor,
+      intensity,
+    )!;
+  }
+
+  Map<String, Map<int, int>> _ensureHeatmapData(
+    Map<String, Map<int, int>>? data,
+  ) {
+    final dayNames = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+
+    final result = <String, Map<int, int>>{};
+
+    for (var day in dayNames) {
+      result[day] = {};
+      for (int hour = 0; hour < 24; hour++) {
+        result[day]![hour] = data?[day]?[hour] ?? 0;
+      }
+    }
+
+    return result;
+  }
+
+  Widget _buildWeeklyHeatmapSection(
     DashboardAnalyticsProvider provider,
     bool isDark,
     bool isMobile,
   ) {
-    final data = provider.busTypeOccupancy;
+    final rawHeatmapData = provider.weeklyHeatmap;
 
+    if (rawHeatmapData == null || rawHeatmapData.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSizes.cardPadding),
+          child: _buildNoDataPlaceholder('No heatmap data', isDark),
+        ),
+      );
+    }
+
+    // Ensure proper data structure
+    final heatmapData = _ensureHeatmapData(rawHeatmapData);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Weekly Activity Heatmap',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Text(
+                            'Passenger activity by day and hour',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              provider.currentWeekLabel ?? 'All Weeks',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Busiest Day Badge and Week Filter
+                Row(
+                  children: [
+                    if (provider.busiestDayOfWeek != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              TablerIcons.flame,
+                              color: Colors.orange,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Busiest: ${provider.busiestDayOfWeek}',
+                              style: const TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(width: 12),
+                    _buildWeekFilterDropdown(provider, isDark),
+                  ],
+                ),
+              ],
+            ),
+
+            const SizedBox(height: AppSizes.xl),
+
+            // Heatmap and Legend Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Heatmap (left side)
+                Expanded(flex: 0, child: _buildHeatmap(heatmapData, isDark)),
+
+                const SizedBox(width: AppSizes.xl),
+
+                // Legend (right side) - only show on non-mobile
+                if (!isMobile)
+                  SizedBox(
+                    width: 524,
+                    child: _buildHeatmapLegend(heatmapData, isDark),
+                  ),
+              ],
+            ),
+
+            // For mobile, show legend below
+            if (isMobile) ...[
+              const SizedBox(height: AppSizes.xl),
+              _buildHeatmapLegend(heatmapData, isDark),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWeekFilterDropdown(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+  ) {
+    final availableWeeks = provider.availableWeeks ?? [];
+
+    if (availableWeeks.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.backgroundDark : Colors.white,
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+          border: Border.all(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          ),
+        ),
+        child: DropdownButton<int?>(
+          value: provider.selectedWeekFilter,
+          isDense: true,
+          isExpanded: false,
+
+          // ✅ Arrow on the FAR RIGHT
+          icon: Icon(
+            TablerIcons.chevron_down,
+            size: 18,
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
+          ),
+
+          // ✅ Removes default underline
+          underline: const SizedBox(),
+
+          items: [
+            DropdownMenuItem(
+              value: null,
+              child: Text(
+                'All Weeks',
+                style: TextStyle(
+                  fontFamily: GoogleFonts.poppins().fontFamily,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? AppColors.textPrimaryDark
+                      : AppColors.textPrimaryLight,
+                ),
+              ),
+            ),
+            ...availableWeeks.map((week) {
+              return DropdownMenuItem(
+                value: week.weekNumber,
+                child: Text(
+                  week.weekLabel,
+                  style: TextStyle(
+                    fontFamily: GoogleFonts.poppins().fontFamily,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+
+          // ✅ CUSTOM CENTERED DISPLAY (Calendar + Text)
+          selectedItemBuilder: (context) {
+            return [
+              _buildCenteredItem("All Weeks", isDark),
+              ...availableWeeks.map(
+                (week) => _buildCenteredItem(week.weekLabel, isDark),
+              ),
+            ];
+          },
+
+          onChanged: (value) {
+            provider.setWeekFilter(value);
+          },
+
+          dropdownColor: isDark ? AppColors.backgroundDark : Colors.white,
+        ),
+      ),
+    );
+  }
+
+  // ✅ Reusable centered item builder
+  Widget _buildCenteredItem(String text, bool isDark) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          TablerIcons.calendar,
+          size: 18,
+          color: isDark
+              ? AppColors.textSecondaryDark
+              : AppColors.textSecondaryLight,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: TextStyle(
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: isDark
+                ? AppColors.textPrimaryDark
+                : AppColors.textPrimaryLight,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeatmapLegend(Map<String, Map<int, int>> data, bool isDark) {
+    int maxValue = 0;
+    for (var dayData in data.values) {
+      for (var value in dayData.values) {
+        if (value > maxValue) maxValue = value;
+      }
+    }
+
+    final legendItems = _generateLegendItems(maxValue, isDark);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.backgroundDark.withOpacity(0.3)
+            : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+        border: Border.all(
+          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title
+          Row(
+            children: [
+              Icon(
+                TablerIcons.info_circle,
+                size: 20,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Heatmap Guide',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Description
+          Text(
+            'This heatmap visualizes passenger activity patterns across different days and hours. Darker colors indicate higher passenger volume.',
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.5,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Intensity Scale Title
+          Text(
+            'Passenger Volume',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark
+                  ? AppColors.textPrimaryDark
+                  : AppColors.textPrimaryLight,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Legend items - horizontal color boxes with scroll
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: legendItems
+                  .map(
+                    (item) => Container(
+                      width: 90, // Fixed width for each item
+                      margin: const EdgeInsets.only(right: 8),
+                      child: Column(
+                        children: [
+                          // Color box
+                          Container(
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: item.color,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.1)
+                                    : Colors.black.withOpacity(0.1),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Label
+                          Text(
+                            item.label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          // Range
+                          Text(
+                            item.range,
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // Additional info
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                Icon(TablerIcons.bulb, size: 16, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Tip: Use the week filter to analyze specific time periods',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primary,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<LegendItem> _generateLegendItems(int maxValue, bool isDark) {
+    if (maxValue == 0) {
+      return [
+        LegendItem(
+          label: 'No Activity',
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+          range: '0 passengers',
+        ),
+      ];
+    }
+
+    // Calculate quartiles
+    final q1 = (maxValue * 0.25).ceil();
+    final q2 = (maxValue * 0.5).ceil();
+    final q3 = (maxValue * 0.75).ceil();
+
+    return [
+      LegendItem(
+        label: 'Very High',
+        color: _getHeatmapColor(1.0, isDark),
+        range: '$q3+ passengers',
+      ),
+      LegendItem(
+        label: 'High',
+        color: _getHeatmapColor(0.75, isDark),
+        range: '$q2-$q3 passengers',
+      ),
+      LegendItem(
+        label: 'Medium',
+        color: _getHeatmapColor(0.5, isDark),
+        range: '$q1-$q2 passengers',
+      ),
+      LegendItem(
+        label: 'Low',
+        color: _getHeatmapColor(0.25, isDark),
+        range: '1-$q1 passengers',
+      ),
+      LegendItem(
+        label: 'No Activity',
+        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+        range: '0 passengers',
+      ),
+    ];
+  }
+
+  Widget _buildLocationStatsSection(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+    bool isMobile,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Location-Based Passenger Statistics',
+              style: TextStyle(
+                fontSize: AppSizes.fontSizeLg,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total boardings and alightings by waypoint (last 30 days)',
+              style: TextStyle(
+                fontSize: AppSizes.fontSizeSm,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(height: AppSizes.lg),
+            SizedBox(
+              height: 400,
+              child: _buildLocationStatsChart(provider.locationStats, isDark),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLocationStatsChart(
+    List<WaypointPassengerStats>? stats,
+    bool isDark,
+  ) {
+    if (stats == null || stats.isEmpty) {
+      return _buildNoDataPlaceholder('No location data available', isDark);
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY:
+            stats
+                .map(
+                  (s) =>
+                      (s.totalBoardings > s.totalAlightings
+                              ? s.totalBoardings
+                              : s.totalAlightings)
+                          .toDouble(),
+                )
+                .reduce((a, b) => a > b ? a : b) *
+            1.2,
+        barGroups: stats.asMap().entries.map((entry) {
+          final index = entry.key;
+          final stat = entry.value;
+
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: stat.totalBoardings.toDouble(),
+                color: AppColors.success,
+                width: 16,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
+              ),
+              BarChartRodData(
+                toY: stat.totalAlightings.toDouble(),
+                color: AppColors.error,
+                width: 16,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(4),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 && value.toInt() < stats.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      stats[value.toInt()].waypointName,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
+                      ),
+                    ),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final stat = stats[group.x.toInt()];
+              final label = rodIndex == 0 ? 'Boardings' : 'Alightings';
+              final value = rod.toY.toInt();
+              return BarTooltipItem(
+                '${stat.waypointName}\n$label: $value',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ========== SECTION 4: LOCATION HOURLY TREND WITH DROPDOWN ==========
+  Widget _buildLocationHourlyTrendSection(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+    bool isMobile,
+  ) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSizes.cardPadding),
@@ -683,156 +1588,194 @@ class _DashboardScreenState extends State<DashboardScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Bus Type Average Occupancy',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontSizeLg,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.textPrimaryDark
-                            : AppColors.textPrimaryLight,
-                      ),
-                    ),
-                    const SizedBox(height: AppSizes.xs),
-                    Text(
-                      'Average capacity utilization (Past 30 days)',
-                      style: TextStyle(
-                        fontSize: AppSizes.fontSizeSm,
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
-                    ),
-                  ],
-                ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 20),
-                  onPressed: () => provider.refreshBusTypeOccupancy(),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSizes.xxl),
-            if (data == null || data.isEmpty)
-              _buildNoDataPlaceholder('No occupancy data available', isDark)
-            else
-              SizedBox(
-                height: 250,
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: 100,
-                    barTouchData: BarTouchData(
-                      enabled: true,
-                      touchTooltipData: BarTouchTooltipData(
-                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                          return BarTooltipItem(
-                            '${rod.toY.toStringAsFixed(1)}%',
-                            const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          interval: 20,
-                          getTitlesWidget: (value, meta) => Text(
-                            '${value.toInt()}%',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight,
-                            ),
-                          ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Hourly Passenger Trend per Location',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontSizeLg,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight,
                         ),
                       ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          getTitlesWidget: (value, meta) {
-                            final types = ['Small', 'Medium', 'Large'];
-                            if (value.toInt() >= 0 &&
-                                value.toInt() < types.length) {
-                              return Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Text(
-                                  types[value.toInt()],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.textPrimaryDark
-                                        : AppColors.textPrimaryLight,
-                                  ),
-                                ),
-                              );
-                            }
-                            return const Text('');
-                          },
+                      const SizedBox(height: 4),
+                      Text(
+                        'Select a location to view hourly boarding and alighting patterns',
+                        style: TextStyle(
+                          fontSize: AppSizes.fontSizeSm,
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
                         ),
                       ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    borderData: FlBorderData(show: false),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 20,
-                      getDrawingHorizontalLine: (value) => FlLine(
-                        color: isDark
-                            ? AppColors.borderDark
-                            : AppColors.borderLight,
-                        strokeWidth: 1,
-                      ),
-                    ),
-                    barGroups: _busTypeDataToBarGroups(data),
+                    ],
                   ),
                 ),
+                const SizedBox(width: 16),
+                _buildWaypointDropdown(provider, isDark),
+              ],
+            ),
+            const SizedBox(height: AppSizes.lg),
+            SizedBox(
+              height: 350,
+              child: _buildLocationHourlyChart(
+                provider.locationHourlyTrend,
+                isDark,
               ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  List<BarChartGroupData> _busTypeDataToBarGroups(Map<String, double> data) {
-    final types = ['Small', 'Medium', 'Large'];
-    final colors = [AppColors.info, AppColors.success, AppColors.primary];
+  Widget _buildWaypointDropdown(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+  ) {
+    final waypoints = provider.availableWaypoints ?? [];
 
-    return List.generate(types.length, (index) {
-      final busType = types[index];
-      final value = data[busType] ?? 0.0;
+    if (waypoints.isEmpty) {
+      return const Text('No waypoints available');
+    }
 
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: value,
-            color: colors[index],
-            width: 40,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-          ),
-        ],
-      );
-    });
+    return DropdownButton<String>(
+      value: provider.selectedWaypoint,
+      items: waypoints.map((waypoint) {
+        return DropdownMenuItem(value: waypoint, child: Text(waypoint));
+      }).toList(),
+      onChanged: (value) {
+        if (value != null) {
+          provider.setSelectedWaypoint(value);
+        }
+      },
+      underline: Container(),
+      style: TextStyle(
+        color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        fontFamily: GoogleFonts.poppins().fontFamily,
+      ),
+      dropdownColor: isDark ? AppColors.backgroundDark : Colors.white,
+    );
   }
 
-  // ========== 3. ROUTE DISTRIBUTION SECTION ==========
-  Widget _buildRouteDistributionSection(
+  Widget _buildLocationHourlyChart(LocationHourlyTrend? data, bool isDark) {
+    if (data == null) {
+      return _buildNoDataPlaceholder(
+        'No location hourly data available',
+        isDark,
+      );
+    }
+
+    final boardingSpots = data.boardingByHour.entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+        .toList();
+
+    final alightingSpots = data.alightingByHour.entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+        .toList();
+
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          LineChartBarData(
+            spots: boardingSpots,
+            isCurved: true,
+            color: AppColors.success,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.success.withOpacity(0.1),
+            ),
+          ),
+          LineChartBarData(
+            spots: alightingSpots,
+            isCurved: true,
+            color: AppColors.error,
+            barWidth: 3,
+            dotData: const FlDotData(show: true),
+            belowBarData: BarAreaData(
+              show: true,
+              color: AppColors.error.withOpacity(0.1),
+            ),
+          ),
+        ],
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 2,
+              getTitlesWidget: (value, meta) => Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  '${value.toInt()}h',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (spots) => spots.map((spot) {
+              final label = spot.barIndex == 0 ? 'Boardings' : 'Alightings';
+              return LineTooltipItem(
+                '${spot.x.toInt()}:00\n$label: ${spot.y.toInt()}',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ========== SECTION 5: PREFERRED BUS TYPE ==========
+  Widget _buildPreferredBusTypeSection(
     DashboardAnalyticsProvider provider,
     bool isDark,
     bool isMobile,
@@ -844,7 +1787,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Passenger Distribution Along Route',
+              'Preferred Bus Type / Most Passenger Bus Type',
               style: TextStyle(
                 fontSize: AppSizes.fontSizeLg,
                 fontWeight: FontWeight.w600,
@@ -853,9 +1796,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     : AppColors.textPrimaryLight,
               ),
             ),
-            const SizedBox(height: AppSizes.xs),
+            const SizedBox(height: 4),
             Text(
-              'Select a route to view boarding and alighting distribution',
+              'Average passengers per trip by bus size.',
               style: TextStyle(
                 fontSize: AppSizes.fontSizeSm,
                 color: isDark
@@ -863,15 +1806,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                     : AppColors.textSecondaryLight,
               ),
             ),
-            const SizedBox(height: AppSizes.lg),
-            Text(
-              'This feature requires route selection and will be available in the full implementation.',
-              style: TextStyle(
-                fontSize: AppSizes.fontSizeSm,
-                fontStyle: FontStyle.italic,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
+            const SizedBox(height: AppSizes.xxl),
+            SizedBox(
+              height: 300,
+              child: _buildPreferredBusTypeChart(
+                provider.preferredBusType,
+                isDark,
               ),
             ),
           ],
@@ -880,21 +1820,283 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildLoadingState(bool isDark) {
-    return Center(
-      child: Column(
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: AppSizes.lg),
-          Text(
-            'Loading analytics data...',
-            style: TextStyle(
-              color: isDark
-                  ? AppColors.textSecondaryDark
-                  : AppColors.textSecondaryLight,
+  Widget _buildPreferredBusTypeChart(Map<String, double>? data, bool isDark) {
+    if (data == null || data.isEmpty) {
+      return _buildNoDataPlaceholder('No bus type data available', isDark);
+    }
+
+    final sortedEntries = data.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY:
+            sortedEntries.map((e) => e.value).reduce((a, b) => a > b ? a : b) *
+            1.2,
+        barGroups: sortedEntries.asMap().entries.map((entry) {
+          final index = entry.key;
+          final busType = entry.value;
+
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: busType.value,
+                color: _getBusTypeColor(index),
+                width: 40,
+                borderRadius: const BorderRadius.horizontal(
+                  right: Radius.circular(6),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 120,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 &&
+                    value.toInt() < sortedEntries.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: Text(
+                      sortedEntries[value.toInt()].key,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
+                      ),
+                      textAlign: TextAlign.right,
+                    ),
+                  );
+                }
+                return const Text('');
+              },
             ),
           ),
-        ],
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) => Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Text(
+                  value.toInt().toString(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawHorizontalLine: false,
+          getDrawingVerticalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final busType = sortedEntries[group.x.toInt()];
+              return BarTooltipItem(
+                '${busType.key}\nAvg: ${busType.value.toStringAsFixed(1)} passengers/trip',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getBusTypeColor(int index) {
+    final colors = [
+      AppColors.primary,
+      AppColors.success,
+      AppColors.warning,
+      AppColors.info,
+      AppColors.error,
+    ];
+    return colors[index % colors.length];
+  }
+
+  // ========== SECTION 6: PEAK DAYS PER MONTH ==========
+  Widget _buildPeakDaysSection(
+    DashboardAnalyticsProvider provider,
+    bool isDark,
+    bool isMobile,
+  ) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSizes.cardPadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Peak Day of Every Month',
+              style: TextStyle(
+                fontSize: AppSizes.fontSizeLg,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.textPrimaryDark
+                    : AppColors.textPrimaryLight,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Busiest day and peak hour for each month',
+              style: TextStyle(
+                fontSize: AppSizes.fontSizeSm,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(height: AppSizes.lg),
+            SizedBox(
+              height: 350,
+              child: _buildPeakDaysChart(provider.peakDaysPerMonth, isDark),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeakDaysChart(List<PeakDayData>? data, bool isDark) {
+    if (data == null || data.isEmpty) {
+      return _buildNoDataPlaceholder('No peak day data available', isDark);
+    }
+
+    return BarChart(
+      BarChartData(
+        alignment: BarChartAlignment.spaceAround,
+        maxY:
+            data
+                .map((d) => d.totalPassengers.toDouble())
+                .reduce((a, b) => a > b ? a : b) *
+            1.2,
+        barGroups: data.asMap().entries.map((entry) {
+          final index = entry.key;
+          final peakDay = entry.value;
+
+          return BarChartGroupData(
+            x: index,
+            barRods: [
+              BarChartRodData(
+                toY: peakDay.totalPassengers.toDouble(),
+                color: AppColors.success,
+                width: 30,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(6),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 50,
+              getTitlesWidget: (value, meta) => Text(
+                value.toInt().toString(),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                if (value.toInt() >= 0 && value.toInt() < data.length) {
+                  final monthKey = data[value.toInt()].month;
+                  final date = DateTime.parse('$monthKey-01');
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      DateFormat('MMM').format(date),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isDark
+                            ? AppColors.textPrimaryDark
+                            : AppColors.textPrimaryLight,
+                      ),
+                    ),
+                  );
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            strokeWidth: 1,
+          ),
+        ),
+        barTouchData: BarTouchData(
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final peakDay = data[group.x.toInt()];
+              final date = DateTime.parse(peakDay.peakDate);
+              return BarTooltipItem(
+                'Month: ${DateFormat('MMM yyyy').format(date)}\nBusiest Day: ${DateFormat('MMM d').format(date)}\nTotal Passengers: ${peakDay.totalPassengers}\nPeak Hour: ${peakDay.peakHour}:00',
+                const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(bool isDark) {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(48.0),
+        child: CircularProgressIndicator(),
       ),
     );
   }
@@ -907,27 +2109,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Icon(Icons.error_outline_rounded, size: 64, color: AppColors.error),
             const SizedBox(height: AppSizes.lg),
-            Text(
-              'Failed to load analytics',
-              style: TextStyle(
-                fontSize: AppSizes.fontSizeLg,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.textPrimaryDark
-                    : AppColors.textPrimaryLight,
-              ),
-            ),
-            const SizedBox(height: AppSizes.sm),
-            Text(
-              error,
-              style: TextStyle(
-                fontSize: AppSizes.fontSizeSm,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            Text('Error: $error'),
           ],
         ),
       ),
@@ -938,27 +2120,35 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(AppSizes.xxl),
-        child: Column(
-          children: [
-            Icon(
-              Icons.bar_chart_rounded,
-              size: 48,
-              color: isDark
-                  ? AppColors.textTertiaryDark
-                  : AppColors.textTertiaryLight,
-            ),
-            const SizedBox(height: AppSizes.md),
-            Text(
-              message,
-              style: TextStyle(
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-              ),
-            ),
-          ],
+        child: Text(
+          message,
+          style: TextStyle(
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
+          ),
         ),
       ),
     );
   }
+}
+
+class HeatmapLegend {
+  final String title;
+  final String description;
+  final List<LegendItem> items;
+
+  HeatmapLegend({
+    required this.title,
+    required this.description,
+    required this.items,
+  });
+}
+
+class LegendItem {
+  final String label;
+  final Color color;
+  final String range;
+
+  LegendItem({required this.label, required this.color, required this.range});
 }

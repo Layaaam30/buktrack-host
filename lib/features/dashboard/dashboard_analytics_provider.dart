@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dashboard_analytics_service.dart';
 
-/// Dashboard Analytics Provider
-/// Manages analytics data state
+/// Comprehensive Dashboard Analytics Provider
+/// Manages all analytics data states from CAPSTONE.pdf requirements
 class DashboardAnalyticsProvider with ChangeNotifier {
   final DashboardAnalyticsService _analyticsService =
       DashboardAnalyticsService();
@@ -12,25 +12,77 @@ class DashboardAnalyticsProvider with ChangeNotifier {
   String? _error;
   String _currentCompanyId = '';
 
+  // Time period filter
+  String _selectedTimePeriod = 'today'; // today, daily, weekly, monthly
+
+  // Week filter for heatmap
+  int? _selectedWeekFilter; // null = "All Weeks", specific week number
+
   // Analytics data
-  Map<int, int>? _hourlyTrend;
-  Map<String, int>? _weeklyTrend;
-  List<WaypointPassengerData>? _routeDistribution;
-  Map<String, double>? _busTypeOccupancy;
+  Map<int, int>? _liveHourlyTrend;
+  Map<String, int>? _dailyTrend30Days;
+  WeeklyHeatmapData? _weeklyHeatmapData; // Updated to use new model
+  List<WaypointPassengerStats>? _locationStats;
+  LocationHourlyTrend? _locationHourlyTrend;
+  Map<String, double>? _preferredBusType;
+  Map<String, int>? _monthlyTrend;
+  List<PeakDayData>? _peakDaysPerMonth;
   Map<String, dynamic>? _dashboardSummary;
 
-  // Selected route for distribution view
-  String? _selectedRouteId;
+  // Waypoint selection for location-specific analytics
+  String? _selectedWaypoint;
+  List<String>? _availableWaypoints;
 
   // Getters
   bool get isLoading => _isLoading;
   String? get error => _error;
-  Map<int, int>? get hourlyTrend => _hourlyTrend;
-  Map<String, int>? get weeklyTrend => _weeklyTrend;
-  List<WaypointPassengerData>? get routeDistribution => _routeDistribution;
-  Map<String, double>? get busTypeOccupancy => _busTypeOccupancy;
+  String get selectedTimePeriod => _selectedTimePeriod;
+  int? get selectedWeekFilter => _selectedWeekFilter;
+
+  Map<int, int>? get liveHourlyTrend => _liveHourlyTrend;
+  Map<String, int>? get dailyTrend30Days => _dailyTrend30Days;
+
+  // Return the appropriate heatmap data based on filter
+  Map<String, Map<int, int>>? get weeklyHeatmap {
+    if (_weeklyHeatmapData == null) return null;
+
+    if (_selectedWeekFilter == null) {
+      // Return aggregated data (all weeks)
+      return _weeklyHeatmapData!.aggregatedData;
+    } else {
+      // Return specific week's data
+      final weekData = _weeklyHeatmapData!.weeks.firstWhere(
+        (w) => w.weekNumber == _selectedWeekFilter,
+        orElse: () => _weeklyHeatmapData!.weeks.first,
+      );
+      return weekData.data;
+    }
+  }
+
+  // Get list of available weeks
+  List<WeekHeatmapData>? get availableWeeks => _weeklyHeatmapData?.weeks;
+
+  // Get current week label
+  String? get currentWeekLabel {
+    if (_weeklyHeatmapData == null) return null;
+    if (_selectedWeekFilter == null) return 'All Weeks';
+
+    final weekData = _weeklyHeatmapData!.weeks.firstWhere(
+      (w) => w.weekNumber == _selectedWeekFilter,
+      orElse: () => _weeklyHeatmapData!.weeks.first,
+    );
+    return weekData.weekLabel;
+  }
+
+  List<WaypointPassengerStats>? get locationStats => _locationStats;
+  LocationHourlyTrend? get locationHourlyTrend => _locationHourlyTrend;
+  Map<String, double>? get preferredBusType => _preferredBusType;
+  Map<String, int>? get monthlyTrend => _monthlyTrend;
+  List<PeakDayData>? get peakDaysPerMonth => _peakDaysPerMonth;
   Map<String, dynamic>? get dashboardSummary => _dashboardSummary;
-  String? get selectedRouteId => _selectedRouteId;
+
+  String? get selectedWaypoint => _selectedWaypoint;
+  List<String>? get availableWaypoints => _availableWaypoints;
 
   /// Initialize with company ID
   void setCompanyId(String companyId) {
@@ -41,18 +93,42 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Set time period filter
+  void setTimePeriod(String period) {
+    if (_selectedTimePeriod == period) return;
+    _selectedTimePeriod = period;
+    notifyListeners();
+  }
+
+  /// Set week filter for heatmap
+  void setWeekFilter(int? weekNumber) {
+    _selectedWeekFilter = weekNumber;
+    notifyListeners();
+  }
+
+  /// Set selected waypoint for location-specific analytics
+  Future<void> setSelectedWaypoint(String waypoint) async {
+    _selectedWaypoint = waypoint;
+    notifyListeners();
+    await loadLocationHourlyTrend();
+  }
+
   /// Clear all data
   void _clearData() {
-    _hourlyTrend = null;
-    _weeklyTrend = null;
-    _routeDistribution = null;
-    _busTypeOccupancy = null;
+    _liveHourlyTrend = null;
+    _dailyTrend30Days = null;
+    _weeklyHeatmapData = null;
+    _locationStats = null;
+    _locationHourlyTrend = null;
+    _preferredBusType = null;
+    _monthlyTrend = null;
+    _peakDaysPerMonth = null;
     _dashboardSummary = null;
     _error = null;
+    _selectedWeekFilter = null;
   }
 
   /// Load all analytics data progressively
-  /// This loads data in priority order to show something quickly
   Future<void> loadAllAnalytics() async {
     if (_currentCompanyId.isEmpty) {
       _error = 'Company ID not set';
@@ -65,17 +141,26 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load summary first (fastest - uses count queries)
+      // Priority 1: Summary (fastest)
       await loadDashboardSummary();
 
-      // Load hourly trend (second priority - today's data only)
-      await loadHourlyTrend();
+      // Priority 2: Current day data
+      await loadLiveHourlyTrend();
 
-      // Load weekly trend (third priority - 7 days)
-      await loadWeeklyTrend();
+      // Priority 3: Recent trends
+      await loadDailyTrend30Days();
+      await loadWeeklyHeatmap();
 
-      // Load bus type occupancy (fourth priority - 30 days aggregation)
-      await loadBusTypeOccupancy();
+      // Priority 4: Location data
+      await loadLocationStats();
+      await loadWaypointsList();
+
+      // Priority 5: Bus type analytics
+      await loadPreferredBusType();
+
+      // Priority 6: Long-term trends
+      await loadMonthlyTrend();
+      await loadPeakDaysPerMonth();
 
       _isLoading = false;
       notifyListeners();
@@ -86,7 +171,8 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     }
   }
 
-  /// Load dashboard summary statistics
+  // ========== INDIVIDUAL DATA LOADERS ==========
+
   Future<void> loadDashboardSummary() async {
     try {
       _dashboardSummary = await _analyticsService.getDashboardSummary(
@@ -95,92 +181,182 @@ class DashboardAnalyticsProvider with ChangeNotifier {
       notifyListeners();
     } catch (e) {
       print('Error loading dashboard summary: $e');
-      // Don't throw - allow other data to load
     }
   }
 
-  /// Load hourly passenger trend
-  Future<void> loadHourlyTrend() async {
+  Future<void> loadLiveHourlyTrend() async {
     try {
-      _hourlyTrend = await _analyticsService.getDailyPassengerTrendByHour(
+      _liveHourlyTrend = await _analyticsService.getLivePassengerHourlyTrend(
         _currentCompanyId,
       );
       notifyListeners();
     } catch (e) {
-      print('Error loading hourly trend: $e');
-      // Don't throw - allow other data to load
+      print('Error loading live hourly trend: $e');
     }
   }
 
-  /// Load weekly passenger trend
-  Future<void> loadWeeklyTrend() async {
+  Future<void> loadDailyTrend30Days() async {
     try {
-      _weeklyTrend = await _analyticsService.getWeeklyPassengerTrendByDay(
+      _dailyTrend30Days = await _analyticsService.getDailyPassengerTrend30Days(
         _currentCompanyId,
       );
       notifyListeners();
     } catch (e) {
-      print('Error loading weekly trend: $e');
-      // Don't throw - allow other data to load
+      print('Error loading daily trend: $e');
     }
   }
 
-  /// Load route passenger distribution
-  Future<void> loadRouteDistribution(String routeId) async {
-    _selectedRouteId = routeId;
-    notifyListeners();
-
+  Future<void> loadWeeklyHeatmap() async {
     try {
-      _routeDistribution = await _analyticsService
-          .getRoutePassengerDistribution(routeId, _currentCompanyId);
+      print(
+        '🔍 Starting to load weekly heatmap for company: $_currentCompanyId',
+      );
+
+      _weeklyHeatmapData = await _analyticsService.getWeeklyPassengerHeatmap(
+        _currentCompanyId,
+      );
+
+      print('📊 Weekly heatmap data loaded:');
+      print('   - Weeks count: ${_weeklyHeatmapData?.weeks.length ?? 0}');
+      print(
+        '   - Aggregated data keys: ${_weeklyHeatmapData?.aggregatedData.keys.toList() ?? []}',
+      );
+
+      if (_weeklyHeatmapData != null) {
+        print(
+          '   - Sample aggregated data for Monday: ${_weeklyHeatmapData!.aggregatedData['Monday']}',
+        );
+
+        for (var week in _weeklyHeatmapData!.weeks) {
+          print('   - Week ${week.weekNumber}: ${week.weekLabel}');
+        }
+      }
+
+      // Default to showing all weeks
+      _selectedWeekFilter = null;
+      print('✅ Weekly heatmap loaded successfully');
+
       notifyListeners();
     } catch (e) {
-      _error = 'Failed to load route distribution: $e';
-      notifyListeners();
+      print('❌ Error loading weekly heatmap: $e');
+      print('Stack trace: ${StackTrace.current}');
     }
   }
 
-  /// Load bus type average occupancy
-  Future<void> loadBusTypeOccupancy() async {
+  Future<void> loadLocationStats() async {
     try {
-      _busTypeOccupancy = await _analyticsService.getBusTypeAverageOccupancy(
+      _locationStats = await _analyticsService.getLocationBasedPassengerStats(
         _currentCompanyId,
       );
       notifyListeners();
     } catch (e) {
-      print('Error loading bus type occupancy: $e');
-      // Don't throw - allow other data to load
+      print('Error loading location stats: $e');
     }
   }
 
-  /// Refresh all data (clears cache)
+  Future<void> loadLocationHourlyTrend() async {
+    if (_selectedWaypoint == null) return;
+
+    try {
+      _locationHourlyTrend = await _analyticsService.getHourlyTrendPerLocation(
+        _currentCompanyId,
+        _selectedWaypoint!,
+      );
+      notifyListeners();
+    } catch (e) {
+      print('Error loading location hourly trend: $e');
+    }
+  }
+
+  Future<void> loadPreferredBusType() async {
+    try {
+      _preferredBusType = await _analyticsService.getPreferredBusType(
+        _currentCompanyId,
+      );
+      notifyListeners();
+    } catch (e) {
+      print('Error loading preferred bus type: $e');
+    }
+  }
+
+  Future<void> loadMonthlyTrend() async {
+    try {
+      _monthlyTrend = await _analyticsService.getMonthlyPassengerTrend(
+        _currentCompanyId,
+      );
+      notifyListeners();
+    } catch (e) {
+      print('Error loading monthly trend: $e');
+    }
+  }
+
+  Future<void> loadPeakDaysPerMonth() async {
+    try {
+      _peakDaysPerMonth = await _analyticsService.getPeakDayPerMonth(
+        _currentCompanyId,
+      );
+      notifyListeners();
+    } catch (e) {
+      print('Error loading peak days: $e');
+    }
+  }
+
+  Future<void> loadWaypointsList() async {
+    try {
+      _availableWaypoints = await _analyticsService.getWaypointsList(
+        _currentCompanyId,
+      );
+      if (_availableWaypoints != null && _availableWaypoints!.isNotEmpty) {
+        _selectedWaypoint = _availableWaypoints!.first;
+        await loadLocationHourlyTrend();
+      }
+      notifyListeners();
+    } catch (e) {
+      print('Error loading waypoints list: $e');
+    }
+  }
+
+  // ========== REFRESH METHODS ==========
+
   Future<void> refreshAllData() async {
     _analyticsService.clearCache();
     _clearData();
     await loadAllAnalytics();
   }
 
-  /// Refresh specific data
-  Future<void> refreshHourlyTrend() async {
+  Future<void> refreshLiveHourlyTrend() async {
     _analyticsService.clearCache();
-    await loadHourlyTrend();
+    await loadLiveHourlyTrend();
   }
 
-  Future<void> refreshWeeklyTrend() async {
+  Future<void> refreshDailyTrend() async {
     _analyticsService.clearCache();
-    await loadWeeklyTrend();
+    await loadDailyTrend30Days();
   }
 
-  Future<void> refreshRouteDistribution() async {
-    if (_selectedRouteId != null) {
-      _analyticsService.clearCache();
-      await loadRouteDistribution(_selectedRouteId!);
-    }
+  Future<void> refreshWeeklyHeatmap() async {
+    _analyticsService.clearCache();
+    await loadWeeklyHeatmap();
   }
 
-  Future<void> refreshBusTypeOccupancy() async {
+  Future<void> refreshLocationStats() async {
     _analyticsService.clearCache();
-    await loadBusTypeOccupancy();
+    await loadLocationStats();
+  }
+
+  Future<void> refreshPreferredBusType() async {
+    _analyticsService.clearCache();
+    await loadPreferredBusType();
+  }
+
+  Future<void> refreshMonthlyTrend() async {
+    _analyticsService.clearCache();
+    await loadMonthlyTrend();
+  }
+
+  Future<void> refreshPeakDays() async {
+    _analyticsService.clearCache();
+    await loadPeakDaysPerMonth();
   }
 
   /// Clear error
@@ -189,14 +365,22 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  /// Get peak hour from hourly trend
-  int? get peakHour {
-    if (_hourlyTrend == null || _hourlyTrend!.isEmpty) return null;
+  // ========== COMPUTED PROPERTIES ==========
+
+  /// Get total passengers today
+  int get totalPassengersToday {
+    if (_liveHourlyTrend == null) return 0;
+    return _liveHourlyTrend!.values.fold(0, (sum, count) => sum + count);
+  }
+
+  /// Get peak hour today
+  int? get peakHourToday {
+    if (_liveHourlyTrend == null || _liveHourlyTrend!.isEmpty) return null;
 
     int maxHour = 0;
     int maxCount = 0;
 
-    for (var entry in _hourlyTrend!.entries) {
+    for (var entry in _liveHourlyTrend!.entries) {
       if (entry.value > maxCount) {
         maxCount = entry.value;
         maxHour = entry.key;
@@ -206,67 +390,81 @@ class DashboardAnalyticsProvider with ChangeNotifier {
     return maxHour;
   }
 
-  /// Get peak day from weekly trend
-  String? get peakDay {
-    if (_weeklyTrend == null || _weeklyTrend!.isEmpty) return null;
-
-    String maxDay = '';
-    int maxCount = 0;
-
-    for (var entry in _weeklyTrend!.entries) {
-      if (entry.value > maxCount) {
-        maxCount = entry.value;
-        maxDay = entry.key;
-      }
-    }
-
-    return maxDay;
-  }
-
-  /// Get total passengers today
-  int get totalPassengersToday {
-    if (_hourlyTrend == null) return 0;
-    return _hourlyTrend!.values.fold(0, (sum, count) => sum + count);
-  }
-
-  /// Get total passengers this week
-  int get totalPassengersThisWeek {
-    if (_weeklyTrend == null) return 0;
-    return _weeklyTrend!.values.fold(0, (sum, count) => sum + count);
-  }
-
   /// Get busiest waypoint
-  WaypointPassengerData? get busiestWaypoint {
-    if (_routeDistribution == null || _routeDistribution!.isEmpty) return null;
-
-    WaypointPassengerData? busiest;
-    int maxActivity = 0;
-
-    for (var waypoint in _routeDistribution!) {
-      final activity = waypoint.boardingCount + waypoint.alightingCount;
-      if (activity > maxActivity) {
-        maxActivity = activity;
-        busiest = waypoint;
-      }
-    }
-
-    return busiest;
+  WaypointPassengerStats? get busiestWaypoint {
+    if (_locationStats == null || _locationStats!.isEmpty) return null;
+    return _locationStats!.first; // Already sorted by activity
   }
 
-  /// Get most efficient bus type (highest occupancy)
-  String? get mostEfficientBusType {
-    if (_busTypeOccupancy == null || _busTypeOccupancy!.isEmpty) return null;
+  /// Get most preferred bus type
+  String? get mostPreferredBusType {
+    if (_preferredBusType == null || _preferredBusType!.isEmpty) return null;
 
     String maxType = '';
-    double maxOccupancy = 0.0;
+    double maxAvg = 0.0;
 
-    for (var entry in _busTypeOccupancy!.entries) {
-      if (entry.value > maxOccupancy) {
-        maxOccupancy = entry.value;
+    for (var entry in _preferredBusType!.entries) {
+      if (entry.value > maxAvg) {
+        maxAvg = entry.value;
         maxType = entry.key;
       }
     }
 
     return maxType;
+  }
+
+  /// Get busiest month
+  String? get busiestMonth {
+    if (_monthlyTrend == null || _monthlyTrend!.isEmpty) return null;
+
+    String maxMonth = '';
+    int maxCount = 0;
+
+    for (var entry in _monthlyTrend!.entries) {
+      if (entry.value > maxCount) {
+        maxCount = entry.value;
+        maxMonth = entry.key;
+      }
+    }
+
+    return maxMonth;
+  }
+
+  /// Get trend data based on selected time period
+  Map<dynamic, int>? get currentTrendData {
+    switch (_selectedTimePeriod) {
+      case 'today':
+        return _liveHourlyTrend;
+      case 'daily':
+        return _dailyTrend30Days;
+      case 'monthly':
+        return _monthlyTrend;
+      default:
+        return _liveHourlyTrend;
+    }
+  }
+
+  String? get busiestDayOfWeek {
+    if (_weeklyHeatmapData == null) return null;
+
+    // Use the currently displayed heatmap data
+    final heatmapToAnalyze = weeklyHeatmap;
+    if (heatmapToAnalyze == null || heatmapToAnalyze.isEmpty) return null;
+
+    String maxDay = '';
+    int maxCount = 0;
+
+    for (var entry in heatmapToAnalyze.entries) {
+      final totalForDay = entry.value.values.fold(
+        0,
+        (sum, count) => sum + count,
+      );
+      if (totalForDay > maxCount) {
+        maxCount = totalForDay;
+        maxDay = entry.key;
+      }
+    }
+
+    return maxDay.isNotEmpty ? maxDay : null;
   }
 }

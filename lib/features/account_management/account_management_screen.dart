@@ -1415,12 +1415,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
     final bool isDriver = role.toLowerCase() == 'driver';
 
     final Color bgColor = isDriver
-        ? const Color(0xFFE0F2FF) // light blue
-        : const Color(0xFFF3E8FF); // light purple
+        ? const Color(0xFFE0F2FF)
+        : const Color(0xFFF3E8FF);
 
     final Color fgColor = isDriver
-        ? const Color(0xFF2563EB) // blue
-        : const Color(0xFF9333EA); // purple
+        ? const Color(0xFF2563EB)
+        : const Color(0xFF9333EA);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
