@@ -10,6 +10,7 @@ import 'features/route_management/route_management_screen.dart';
 import 'features/activity_logs/activity_logs_screen.dart';
 import 'shared/widgets/layouts/app_shell.dart';
 import 'providers/theme_provider.dart';
+import 'features/waypoint_management/waypoint_management_screen.dart';
 
 class BukTrackApp extends StatelessWidget {
   const BukTrackApp({super.key});
@@ -19,7 +20,7 @@ class BukTrackApp extends StatelessWidget {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
-          title: 'BukTrack Admin',
+          title: 'BUKTRACK',
           debugShowCheckedModeBanner: false,
 
           theme: AppTheme.lightTheme,
@@ -41,6 +42,7 @@ class BukTrackApp extends StatelessWidget {
                   '/account-management': const AccountManagementScreen(),
                   '/bus-management': const BusManagementScreen(),
                   '/route-management': const RouteManagementScreen(),
+                  '/waypoint-management': const WaypointManagementScreen(),
                   '/activity-logs': const ActivityLogsScreen(),
                 },
               );
@@ -49,9 +51,7 @@ class BukTrackApp extends StatelessWidget {
 
           builder: (context, child) {
             return MediaQuery(
-              data: MediaQuery.of(context).copyWith(
-                textScaleFactor: 1.0,
-              ),
+              data: MediaQuery.of(context).copyWith(textScaleFactor: 1.0),
               child: child!,
             );
           },

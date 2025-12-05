@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
+import 'admin_user.dart';
 
 /// Authentication Provider
 /// Manages authentication state across the app
@@ -10,6 +11,7 @@ class AuthProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isInitialized = false;
   Map<String, dynamic>? _adminData;
+  AdminUser? _currentUser;
   String? _errorMessage;
 
   // Getters
@@ -17,6 +19,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isInitialized => _isInitialized;
   Map<String, dynamic>? get adminData => _adminData;
+  AdminUser? get currentUser => _currentUser;
   String? get errorMessage => _errorMessage;
   String? get adminName => _adminData?['name'];
   String? get adminEmail => _adminData?['email'];
@@ -40,19 +43,30 @@ class AuthProvider extends ChangeNotifier {
         if (adminId != null) {
           // Load admin data
           _adminData = await _authService.getAdminData(adminId);
-          _isAuthenticated = _adminData != null;
+
+          if (_adminData != null) {
+            _isAuthenticated = true;
+            _currentUser = AdminUser.fromMap(_adminData!);
+          } else {
+            _isAuthenticated = false;
+            _adminData = null;
+            _currentUser = null;
+          }
         } else {
           _isAuthenticated = false;
           _adminData = null;
+          _currentUser = null;
         }
       } else {
         _isAuthenticated = false;
         _adminData = null;
+        _currentUser = null;
       }
     } catch (e) {
       debugPrint('Error initializing auth: $e');
       _isAuthenticated = false;
       _adminData = null;
+      _currentUser = null;
       _errorMessage = 'Failed to initialize authentication';
     } finally {
       _isInitialized = true;
@@ -74,12 +88,14 @@ class AuthProvider extends ChangeNotifier {
 
       if (_adminData != null) {
         _isAuthenticated = true;
+        _currentUser = AdminUser.fromMap(_adminData!);
         _isLoading = false;
         notifyListeners();
         return true;
       } else {
         _errorMessage = 'Failed to sign in';
         _isAuthenticated = false;
+        _currentUser = null;
         _isLoading = false;
         notifyListeners();
         return false;
@@ -88,6 +104,7 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = e.toString();
       _isAuthenticated = false;
       _adminData = null;
+      _currentUser = null;
       _isLoading = false;
       notifyListeners();
       return false;
@@ -103,6 +120,7 @@ class AuthProvider extends ChangeNotifier {
       await _authService.signOut();
       _isAuthenticated = false;
       _adminData = null;
+      _currentUser = null;
       _errorMessage = null;
     } catch (e) {
       _errorMessage = 'Failed to sign out';
@@ -144,6 +162,9 @@ class AuthProvider extends ChangeNotifier {
     if (adminId != null) {
       try {
         _adminData = await _authService.getAdminData(adminId);
+        if (_adminData != null) {
+          _currentUser = AdminUser.fromMap(_adminData!);
+        }
         notifyListeners();
       } catch (e) {
         _errorMessage = 'Failed to refresh admin data';

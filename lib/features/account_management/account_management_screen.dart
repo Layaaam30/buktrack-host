@@ -1242,7 +1242,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
       text,
       style: TextStyle(
         fontSize: 11,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.bold,
         letterSpacing: 0.5,
         color: isDark ? AppColors.textSecondaryDark : const Color(0xFF6b7280),
       ),

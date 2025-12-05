@@ -4,7 +4,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import 'account_model.dart';
 
-/// Dialog for adding or editing an account (driver or conductor)
 class AccountDialog extends StatefulWidget {
   final Account? account; // null for add, Account object for edit
   final String companyId;
@@ -24,14 +23,12 @@ class AccountDialog extends StatefulWidget {
 class _AccountDialogState extends State<AccountDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers
   late TextEditingController _nameController;
   late TextEditingController _usernameController;
   late TextEditingController _phoneController;
   late TextEditingController _passwordController;
   late TextEditingController _confirmPasswordController;
 
-  // Dropdowns
   String _selectedRole = 'conductor';
   String _selectedAvailability = 'available';
 
@@ -51,7 +48,6 @@ class _AccountDialogState extends State<AccountDialog> {
   void initState() {
     super.initState();
 
-    // Initialize controllers with existing values if editing
     _nameController = TextEditingController(text: widget.account?.name ?? '');
     _usernameController = TextEditingController(
       text: widget.account?.username ?? '',
@@ -93,8 +89,7 @@ class _AccountDialogState extends State<AccountDialog> {
         phoneNumber: _phoneController.text.trim(),
         role: _selectedRole,
         companyId: widget.companyId,
-        passwordHash:
-            widget.account?.passwordHash ?? '', // Will be set by service
+        passwordHash: widget.account?.passwordHash ?? '',
         availabilityStatus: _selectedAvailability,
         isActive: widget.account?.isActive ?? true,
         createdByAdmin: widget.adminId,
@@ -112,7 +107,6 @@ class _AccountDialogState extends State<AccountDialog> {
       );
 
       if (mounted) {
-        // Return account with password
         Navigator.of(context).pop({
           'account': account,
           'password': _passwordController.text.trim(),
@@ -152,17 +146,12 @@ class _AccountDialogState extends State<AccountDialog> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header
                   _buildHeader(isDark),
-
                   const SizedBox(height: AppSizes.xxl),
 
-                  // Form Fields
                   _buildFormFields(isDark),
-
                   const SizedBox(height: AppSizes.xxl),
 
-                  // Actions
                   _buildActions(isDark),
                 ],
               ),
@@ -266,7 +255,7 @@ class _AccountDialogState extends State<AccountDialog> {
           hint: 'Enter username',
           icon: Icons.account_circle_outlined,
           isDark: isDark,
-          enabled: !isEditing, // Username cannot be changed
+          enabled: !isEditing,
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'Username is required';
@@ -322,7 +311,7 @@ class _AccountDialogState extends State<AccountDialog> {
 
         const SizedBox(height: AppSizes.lg),
 
-        // Password Fields (only for new accounts or when explicitly changing)
+        // Password Field
         if (!isEditing) ...[
           Text(
             'Password',

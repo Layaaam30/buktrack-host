@@ -11,6 +11,7 @@ class BusProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String _currentCompanyId = '';
+  String _currentAdminId = ''; // ADD THIS FIELD
   StreamSubscription<List<Bus>>? _busesSubscription;
 
   String _selectedStatus = 'All Status';
@@ -21,6 +22,7 @@ class BusProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   String get currentCompanyId => _currentCompanyId;
+  String get currentAdminId => _currentAdminId; // ADD THIS GETTER
   String get selectedStatus => _selectedStatus;
   String get selectedRoute => _selectedRoute;
   String get searchQuery => _searchQuery;
@@ -68,19 +70,48 @@ class BusProvider with ChangeNotifier {
     };
   }
 
-  /// Set current company ID and start check updates
-  void setCompanyId(String companyId) {
-    if (_currentCompanyId == companyId) return;
+  /// Set current company ID and admin ID, then start listening
+  /// This is the method that waypoint management expects
+  void setCompanyAndAdmin(String companyId, String adminId) {
+    print('🔧 BusProvider.setCompanyAndAdmin called');
+    print('   Company ID: $companyId');
+    print('   Admin ID: $adminId');
+    print('   Current Company ID: $_currentCompanyId');
+
+    if (_currentCompanyId == companyId && _currentAdminId == adminId) {
+      print('   ⚠️ IDs unchanged, skipping initialization');
+      return; // Avoid redundant calls
+    }
+
     _currentCompanyId = companyId;
+    _currentAdminId = adminId;
+
+    print('   ✅ IDs updated, cancelling previous subscription');
+    // Cancel previous subscription
     _busesSubscription?.cancel();
+
+    // Start new real-time subscription
+    print('   📡 Starting new real-time subscription');
     _startRealtimeListener();
+
     notifyListeners();
   }
 
-  /// checks for bus upadtes
-  void _startRealtimeListener() {
-    if (_currentCompanyId.isEmpty) return;
+  /// Set current company ID and start check updates (LEGACY METHOD - KEPT FOR COMPATIBILITY)
+  /// Calls setCompanyAndAdmin with empty adminId
+  @Deprecated('Use setCompanyAndAdmin instead')
+  void setCompanyId(String companyId) {
+    setCompanyAndAdmin(companyId, '');
+  }
 
+  /// checks for bus updates
+  void _startRealtimeListener() {
+    if (_currentCompanyId.isEmpty) {
+      print('❌ Cannot start listener: Company ID is empty');
+      return;
+    }
+
+    print('🎧 Starting real-time listener for company: $_currentCompanyId');
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -89,12 +120,17 @@ class BusProvider with ChangeNotifier {
         .getBusesStream(_currentCompanyId)
         .listen(
           (buses) {
+            print('✅ BusProvider received ${buses.length} buses from stream');
             _buses = buses;
             _isLoading = false;
             _error = null;
             notifyListeners();
+            print(
+              '   Buses in provider: ${_buses.map((b) => b.plateNumber).join(", ")}',
+            );
           },
           onError: (error) {
+            print('❌ BusProvider stream error: $error');
             _error = error.toString();
             _isLoading = false;
             notifyListeners();
@@ -146,7 +182,7 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  // ========== IMPLMEENTS CRUD OPERATIONS FOR BUS ==========
+  // ========== IMPLEMENTS CRUD OPERATIONS FOR BUS ==========
 
   Future<String?> createBus(Bus bus) async {
     _isLoading = true;

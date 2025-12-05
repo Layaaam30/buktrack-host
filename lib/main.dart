@@ -11,6 +11,7 @@ import 'features/account_management/account_provider.dart';
 import 'features/route_management/route_provider.dart';
 import 'features/dashboard/dashboard_analytics_provider.dart';
 import 'features/activity_logs/activity_log_provider.dart';
+import 'features/waypoint_management/waypoint_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,7 +28,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => BusProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()),
         ChangeNotifierProvider(create: (_) => RouteProvider()),
-        ChangeNotifierProvider(create: (_) => ActivityLogProvider())
+        ChangeNotifierProvider(create: (_) => WaypointProvider()),
+        ChangeNotifierProvider(create: (_) => ActivityLogProvider()),
       ],
       child: const BukTrackApp(),
     ),

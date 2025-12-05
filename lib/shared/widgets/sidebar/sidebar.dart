@@ -256,6 +256,17 @@ class Sidebar extends StatelessWidget {
                 },
               ),
 
+              SidebarLink(
+                icon: TablerIcons.map_pin,
+                label: 'Waypoint Management',
+                isExpanded: isExpanded,
+                isActive: navigationProvider.isActive('/waypoint-management'),
+                onTap: () {
+                  navigationProvider.navigateTo('/waypoint-management');
+                  if (isMobileOpen) onClose();
+                },
+              ),
+
               const SizedBox(height: AppSizes.xl),
 
               // Activity Section

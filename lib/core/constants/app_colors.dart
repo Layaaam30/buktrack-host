@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// BukTrack App Colors
-/// Matching the Vue.js/Tailwind design system
 class AppColors {
-  // Private constructor to prevent instantiation
   AppColors._();
 
   // ========== Primary Colors ==========
@@ -15,28 +13,28 @@ class AppColors {
 
   // ========== Background Colors ==========
   // Light mode
-  static const Color backgroundLight = Color(0xFFf9fafb); // gray-50
-  static const Color surfaceLight = Color(0xFFffffff); // white
-  static const Color cardLight = Color(0xFFffffff); // white
+  static const Color backgroundLight = Color(0xFFf9fafb);
+  static const Color surfaceLight = Color(0xFFffffff);
+  static const Color cardLight = Color(0xFFffffff);
 
   // Dark mode
-  static const Color backgroundDark = Color(0xFF111827); // gray-900
-  static const Color surfaceDark = Color(0xFF1f2937); // gray-800
-  static const Color cardDark = Color(0xFF1f2937); // gray-800
+  static const Color backgroundDark = Color(0xFF111827);
+  static const Color surfaceDark = Color(0xFF1f2937);
+  static const Color cardDark = Color(0xFF1f2937);
 
   // ========== Text Colors ==========
   // Light mode
-  static const Color textPrimaryLight = Color(0xFF111827); // gray-900
-  static const Color textSecondaryLight = Color(0xFF4B5563); // gray-500
-  static const Color textTertiaryLight = Color(0xFF9ca3af); // gray-400
+  static const Color textPrimaryLight = Color(0xFF111827);
+  static const Color textSecondaryLight = Color(0xFF4B5563);
+  static const Color textTertiaryLight = Color(0xFF9ca3af);
 
   // Dark mode
-  static const Color textPrimaryDark = Color(0xFFf9fafb); // gray-50
-  static const Color textSecondaryDark = Color(0xFF9ca3af); // gray-400
-  static const Color textTertiaryDark = Color(0xFF4B5563); // gray-500
+  static const Color textPrimaryDark = Color(0xFFf9fafb);
+  static const Color textSecondaryDark = Color(0xFF9ca3af);
+  static const Color textTertiaryDark = Color(0xFF4B5563);
 
   // ========== Border Colors ==========
-  static const Color borderLight = Color(0xFFe5e7eb); // gray-200
+  static const Color borderLight = Color(0xFFe5e7eb);
   static const Color borderDark = Color(0xFF374151); // gray-700
 
   // ========== Semantic Colors ==========
@@ -76,15 +74,14 @@ class AppColors {
   static const Color statusDelayed = error;
 
   // ========== Component Colors ==========
-  static const Color hoverLight = Color(0xFFf3f4f6); // gray-100
-  static const Color hoverDark = Color(0xFF374151); // gray-700
+  static const Color hoverLight = Color(0xFFf3f4f6);
+  static const Color hoverDark = Color(0xFF374151);
 
   static const Color shadowLight = Color(0x1a000000); // black with 10% opacity
-  static const Color shadowDark = Color(0x00000000); // transparent
+  static const Color shadowDark = Color(0x00000000);
 
-  static const Color overlay = Color(0x80000000); // black with 50% opacity
+  static const Color overlay = Color(0x80000000);
 
-  // ========== Gradient Colors ==========
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, primaryDark],
     begin: Alignment.topLeft,
@@ -103,7 +100,6 @@ class AppColors {
     end: Alignment.bottomRight,
   );
 
-  // ========== Chart Colors ==========
   static const List<Color> chartColors = [
     Color(0xFF3b82f6), // blue
     Color(0xFF10b981), // emerald
@@ -114,9 +110,6 @@ class AppColors {
     Color(0xFFec4899), // pink
   ];
 
-  // ========== Helper Methods ==========
-
-  /// Get text color based on theme mode
   static Color getTextColor(bool isDark, {bool isPrimary = true}) {
     if (isDark) {
       return isPrimary ? textPrimaryDark : textSecondaryDark;
@@ -124,22 +117,18 @@ class AppColors {
     return isPrimary ? textPrimaryLight : textSecondaryLight;
   }
 
-  /// Get background color based on theme mode
   static Color getBackgroundColor(bool isDark) {
     return isDark ? backgroundDark : backgroundLight;
   }
 
-  /// Get surface color based on theme mode
   static Color getSurfaceColor(bool isDark) {
     return isDark ? surfaceDark : surfaceLight;
   }
 
-  /// Get border color based on theme mode
   static Color getBorderColor(bool isDark) {
     return isDark ? borderDark : borderLight;
   }
 
-  /// Get hover color based on theme mode
   static Color getHoverColor(bool isDark) {
     return isDark ? hoverDark : hoverLight;
   }

@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_sizes.dart';
-import 'route_model.dart';
+import 'package:provider/provider.dart';
+import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
+import '../route_management/route_model.dart';
+import '../route_management/route_provider.dart';
+import '../waypoint_management/waypoint_model.dart';
+import '../waypoint_management/waypoint_provider.dart';
+import '../auth/auth_provider.dart';
 
-/// Dialog for adding or editing a route
 class RouteDialog extends StatefulWidget {
-  final RouteModel? route; // null for add, RouteModel object for edit
-  final String companyId;
-  final String adminId;
-  final String? suggestedRouteCode;
+  final RouteModel? route;
 
-  const RouteDialog({
-    super.key,
-    this.route,
-    required this.companyId,
-    required this.adminId,
-    this.suggestedRouteCode,
-  });
+  const RouteDialog({super.key, this.route});
 
   @override
   State<RouteDialog> createState() => _RouteDialogState();
@@ -25,159 +20,247 @@ class RouteDialog extends StatefulWidget {
 
 class _RouteDialogState extends State<RouteDialog> {
   final _formKey = GlobalKey<FormState>();
+  final _routeCodeController = TextEditingController();
+  final _routeNameController = TextEditingController();
+  final _estimatedTimeController = TextEditingController();
 
-  // Controllers
-  late TextEditingController _routeNameController;
-  late TextEditingController _originController;
-  late TextEditingController _destinationController;
-  late TextEditingController _travelTimeController;
-
-  // Waypoints
-  final List<TextEditingController> _waypointControllers = [];
-  List<String> _waypoints = [];
-
+  List<WaypointModel> _selectedWaypoints = [];
   bool _isLoading = false;
+  bool _isLoadingWaypoints = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeFields();
+  }
 
-    // Initialize controllers with existing values if editing
-    _routeNameController = TextEditingController(
-      text: widget.route?.routeName ?? '',
-    );
-    _originController = TextEditingController(
-      text: widget.route?.originName ?? '',
-    );
-    _destinationController = TextEditingController(
-      text: widget.route?.destinationName ?? '',
-    );
-    _travelTimeController = TextEditingController(
-      text: widget.route?.estimatedTravelTime.toString() ?? '',
-    );
+  void _initializeFields() async {
+    if (widget.route != null) {
+      // Editing existing route
+      _routeCodeController.text = widget.route!.routeCode;
+      _routeNameController.text = widget.route!.routeName;
+      _estimatedTimeController.text = widget.route!.estimatedTravelTime
+          .toString();
 
-    // Initialize waypoints
-    if (widget.route != null && widget.route!.waypoints.isNotEmpty) {
-      _waypoints = List.from(widget.route!.waypoints);
-      for (var waypoint in _waypoints) {
-        final controller = TextEditingController(text: waypoint);
-        _waypointControllers.add(controller);
+      // Load waypoints if route has waypoint IDs
+      if (widget.route!.waypoints.isNotEmpty) {
+        setState(() => _isLoadingWaypoints = true);
+
+        // For backward compatibility, check if waypoints are IDs or names
+        final waypointProvider = context.read<WaypointProvider>();
+
+        // Try to load waypoints by IDs
+        try {
+          final waypoints = await waypointProvider.getWaypointsByIds(
+            widget.route!.waypoints,
+          );
+          if (mounted) {
+            setState(() {
+              _selectedWaypoints = waypoints;
+              _isLoadingWaypoints = false;
+            });
+          }
+        } catch (e) {
+          // If loading fails, waypoints might be old string format
+          if (mounted) {
+            setState(() => _isLoadingWaypoints = false);
+          }
+        }
+      }
+    } else {
+      // New route - generate route code
+      final routeProvider = context.read<RouteProvider>();
+      final nextCode = await routeProvider.generateNextRouteCode();
+      if (mounted) {
+        _routeCodeController.text = nextCode;
       }
     }
   }
 
   @override
   void dispose() {
+    _routeCodeController.dispose();
     _routeNameController.dispose();
-    _originController.dispose();
-    _destinationController.dispose();
-    _travelTimeController.dispose();
-    for (var controller in _waypointControllers) {
-      controller.dispose();
-    }
+    _estimatedTimeController.dispose();
     super.dispose();
   }
 
-  bool get isEditing => widget.route != null;
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
 
-  void _addWaypoint() {
-    setState(() {
-      _waypointControllers.add(TextEditingController());
-    });
-  }
-
-  void _removeWaypoint(int index) {
-    setState(() {
-      _waypointControllers[index].dispose();
-      _waypointControllers.removeAt(index);
-    });
-  }
-
-  Future<void> _handleSubmit() async {
-    if (!_formKey.currentState!.validate()) {
+    if (_selectedWaypoints.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please select at least 2 waypoints (origin and destination)',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      // Collect waypoints from controllers
-      final waypoints = _waypointControllers
-          .map((controller) => controller.text.trim())
-          .where((text) => text.isNotEmpty)
-          .toList();
+      final authProvider = context.read<AuthProvider>();
+      final routeProvider = context.read<RouteProvider>();
+
+      // Get origin and destination from first and last waypoints
+      final origin = _selectedWaypoints.first.name;
+      final destination = _selectedWaypoints.last.name;
+
+      // Get waypoint IDs in order
+      final waypointIds = _selectedWaypoints.map((w) => w.id).toList();
 
       final route = RouteModel(
         id: widget.route?.id ?? '',
-        routeCode:
-            widget.route?.routeCode ??
-            '', // Will be auto-generated for new routes
+        routeCode: _routeCodeController.text.trim().toUpperCase(),
         routeName: _routeNameController.text.trim(),
-        originName: _originController.text.trim(),
-        destinationName: _destinationController.text.trim(),
-        waypoints: waypoints,
-        estimatedTravelTime: int.parse(_travelTimeController.text.trim()),
+        originName: origin,
+        destinationName: destination,
+        waypoints: waypointIds, // Store waypoint IDs
+        estimatedTravelTime: int.parse(_estimatedTimeController.text),
         isActive: widget.route?.isActive ?? true,
-        companyId: widget.companyId,
+        companyId: authProvider.currentUser!.companyId,
         assignedBuses: widget.route?.assignedBuses ?? [],
         schedules: widget.route?.schedules ?? [],
-        createdByAdmin: widget.adminId,
+        createdByAdmin:
+            widget.route?.createdByAdmin ?? authProvider.currentUser!.id,
         createdAt: widget.route?.createdAt ?? DateTime.now(),
         updatedAt: DateTime.now(),
+        assignmentChangedBy: widget.route?.assignmentChangedBy,
+        statusChangedBy: widget.route?.statusChangedBy,
+        statusChangedAt: widget.route?.statusChangedAt,
+        updatedByAdmin: authProvider.currentUser!.id,
       );
 
-      if (mounted) {
-        Navigator.of(context).pop(route);
+      bool success;
+      if (widget.route != null) {
+        success = await routeProvider.updateRoute(widget.route!.id, route);
+      } else {
+        final routeId = await routeProvider.createRoute(route);
+        success = routeId != null;
+      }
+
+      if (success && mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.route != null
+                  ? 'Route updated successfully'
+                  : 'Route created successfully',
+            ),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save route'),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text('Error: $e'),
             backgroundColor: AppColors.error,
           ),
         );
+      }
+    } finally {
+      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
   }
 
+  void _showWaypointSelector() async {
+    final waypointProvider = context.read<WaypointProvider>();
+    final availableWaypoints = waypointProvider.waypoints;
+
+    if (availableWaypoints.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No waypoints available. Please create waypoints first.',
+          ),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    final selected = await showDialog<List<WaypointModel>>(
+      context: context,
+      builder: (context) => _WaypointSelectorDialog(
+        availableWaypoints: availableWaypoints,
+        selectedWaypoints: _selectedWaypoints,
+      ),
+    );
+
+    if (selected != null) {
+      setState(() {
+        _selectedWaypoints = selected;
+      });
+    }
+  }
+
+  void _reorderWaypoint(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) {
+        newIndex -= 1;
+      }
+      final waypoint = _selectedWaypoints.removeAt(oldIndex);
+      _selectedWaypoints.insert(newIndex, waypoint);
+    });
+  }
+
+  void _removeWaypoint(int index) {
+    setState(() {
+      _selectedWaypoints.removeAt(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
-      backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+      backgroundColor: AppColors.getSurfaceColor(isDark),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppSizes.radiusLg),
       ),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 700),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(AppSizes.xxl),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header
-                  _buildHeader(isDark),
-
-                  const SizedBox(height: AppSizes.xxl),
-
-                  // Form Fields
-                  _buildFormFields(isDark),
-
-                  const SizedBox(height: AppSizes.xxl),
-
-                  // Actions
-                  _buildActions(isDark),
-                ],
+        width: 700,
+        padding: const EdgeInsets.all(AppSizes.paddingXxl),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(isDark),
+              const SizedBox(height: AppSizes.xl),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildBasicFields(),
+                      const SizedBox(height: AppSizes.xl),
+                      _buildWaypointSection(isDark),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: AppSizes.xl),
+              _buildActions(),
+            ],
           ),
         ),
       ),
@@ -187,343 +270,485 @@ class _RouteDialogState extends State<RouteDialog> {
   Widget _buildHeader(bool isDark) {
     return Row(
       children: [
-        // Icon with green theme
         Container(
-          width: 48,
-          height: 48,
+          padding: const EdgeInsets.all(AppSizes.paddingMd),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF10b981), Color(0xFF059669)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+            color: AppColors.primary.withOpacity(0.1),
             borderRadius: BorderRadius.circular(AppSizes.radiusMd),
           ),
-          child: Icon(
-            isEditing ? Icons.edit_rounded : Icons.add_road_rounded,
-            color: Colors.white,
+          child: const Icon(
+            Icons.route,
+            color: AppColors.primary,
             size: AppSizes.iconLg,
           ),
         ),
-
-        const SizedBox(width: AppSizes.lg),
-
-        // Title
+        const SizedBox(width: AppSizes.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                isEditing ? 'Edit Route' : 'Add New Route',
-                style: TextStyle(
-                  fontSize: AppSizes.fontSizeXl,
+                widget.route != null ? 'Edit Route' : 'Add Route',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.getTextColor(isDark),
                   fontWeight: FontWeight.bold,
-                  color: isDark
-                      ? AppColors.textPrimaryDark
-                      : AppColors.textPrimaryLight,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: AppSizes.xs),
               Text(
-                isEditing
-                    ? 'Update route information'
-                    : 'Create a new bus route',
-                style: TextStyle(
-                  fontSize: AppSizes.fontSizeSm,
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
+                widget.route != null
+                    ? 'Update route details and waypoints'
+                    : 'Create a new route with waypoints',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.getTextColor(isDark, isPrimary: false),
                 ),
               ),
             ],
           ),
         ),
-
-        // Close button
         IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close_rounded),
-          color: isDark
-              ? AppColors.textSecondaryDark
-              : AppColors.textSecondaryLight,
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.pop(context),
         ),
       ],
     );
   }
 
-  Widget _buildFormFields(bool isDark) {
+  Widget _buildBasicFields() {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _routeCodeController,
+                decoration: const InputDecoration(
+                  labelText: 'Route Code *',
+                  hintText: 'RT001',
+                  prefixIcon: Icon(Icons.qr_code),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter route code';
+                  }
+                  return null;
+                },
+              ),
+            ),
+            const SizedBox(width: AppSizes.md),
+            Expanded(
+              child: TextFormField(
+                controller: _estimatedTimeController,
+                decoration: const InputDecoration(
+                  labelText: 'Travel Time (minutes) *',
+                  hintText: '120',
+                  prefixIcon: Icon(Icons.access_time),
+                ),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Required';
+                  }
+                  return null;
+                },
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSizes.lg),
+        TextFormField(
+          controller: _routeNameController,
+          decoration: const InputDecoration(
+            labelText: 'Route Name *',
+            hintText: 'Kibawe to Cagayan de Oro Route',
+            prefixIcon: Icon(Icons.label),
+          ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter route name';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaypointSection(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Show auto-generated route code info (only for new routes)
-        if (!isEditing) ...[
-          Container(
-            padding: const EdgeInsets.all(AppSizes.md),
-            decoration: BoxDecoration(
-              color: const Color(0xFFd1fae5),
-              borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-              border: Border.all(color: const Color(0xFF10b981)),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.info_outline_rounded,
-                  color: Color(0xFF065f46),
-                  size: 20,
-                ),
-                const SizedBox(width: AppSizes.md),
-                Expanded(
-                  child: Text(
-                    widget.suggestedRouteCode != null
-                        ? 'Route code will be auto-generated: ${widget.suggestedRouteCode}'
-                        : 'Route code will be auto-generated automatically',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontSizeSm,
-                      color: const Color(0xFF065f46),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppSizes.lg),
-        ],
-
-        // Route Name
-        TextFormField(
-          controller: _routeNameController,
-          decoration: InputDecoration(
-            labelText: 'Route Name',
-            hintText: 'e.g., CDO-Kibawe Express',
-            prefixIcon: const Icon(Icons.directions_bus_rounded),
-          ),
-          textCapitalization: TextCapitalization.words,
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Route name is required';
-            }
-            return null;
-          },
-        ),
-
-        const SizedBox(height: AppSizes.lg),
-
-        // Origin and Destination
         Row(
-          children: [
-            Expanded(
-              child: TextFormField(
-                controller: _originController,
-                decoration: InputDecoration(
-                  labelText: 'Origin',
-                  hintText: 'Starting point',
-                  prefixIcon: const Icon(Icons.location_on_rounded),
-                ),
-                textCapitalization: TextCapitalization.words,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Origin is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-            const SizedBox(width: AppSizes.md),
-            Icon(
-              Icons.arrow_forward_rounded,
-              color: AppColors.success,
-              size: AppSizes.iconLg,
-            ),
-            const SizedBox(width: AppSizes.md),
-            Expanded(
-              child: TextFormField(
-                controller: _destinationController,
-                decoration: InputDecoration(
-                  labelText: 'Destination',
-                  hintText: 'End point',
-                  prefixIcon: const Icon(Icons.flag_rounded),
-                ),
-                textCapitalization: TextCapitalization.words,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Destination is required';
-                  }
-                  return null;
-                },
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: AppSizes.lg),
-
-        // Estimated Travel Time
-        TextFormField(
-          controller: _travelTimeController,
-          decoration: InputDecoration(
-            labelText: 'Estimated Travel Time (minutes)',
-            hintText: 'e.g., 240',
-            prefixIcon: const Icon(Icons.timer_outlined),
-            suffixText: 'minutes',
-          ),
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Travel time is required';
-            }
-            final minutes = int.tryParse(value);
-            if (minutes == null || minutes <= 0) {
-              return 'Enter a valid number of minutes';
-            }
-            return null;
-          },
-        ),
-
-        const SizedBox(height: AppSizes.xl),
-
-        // Waypoints Section
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Waypoints (Stops)',
-              style: TextStyle(
-                fontSize: AppSizes.fontSizeMd,
-                fontWeight: FontWeight.w600,
-                color: isDark
-                    ? AppColors.textPrimaryDark
-                    : AppColors.textPrimaryLight,
+              'Route Waypoints',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: AppColors.getTextColor(isDark),
+                fontWeight: FontWeight.bold,
               ),
             ),
-            TextButton.icon(
-              onPressed: _addWaypoint,
-              icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
-              label: const Text('Add Stop'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.success),
+            const SizedBox(width: AppSizes.sm),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.paddingSm,
+                vertical: AppSizes.paddingXs,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+              ),
+              child: Text(
+                '${_selectedWaypoints.length} selected',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const Spacer(),
+            ElevatedButton.icon(
+              onPressed: _showWaypointSelector,
+              icon: const Icon(Icons.add_location, size: AppSizes.iconSm),
+              label: const Text('Select Waypoints'),
             ),
           ],
         ),
-
         const SizedBox(height: AppSizes.md),
-
-        // Waypoint List
-        if (_waypointControllers.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(AppSizes.lg),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.hoverDark : const Color(0xFFf9fafb),
-              borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-              border: Border.all(
-                color: isDark ? AppColors.borderDark : AppColors.borderLight,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 20,
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
-                const SizedBox(width: AppSizes.md),
-                Expanded(
-                  child: Text(
-                    'No waypoints added. Click "Add Stop" to add intermediate stops.',
-                    style: TextStyle(
-                      fontSize: AppSizes.fontSizeSm,
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          )
+        if (_isLoadingWaypoints)
+          const Center(child: CircularProgressIndicator())
+        else if (_selectedWaypoints.isEmpty)
+          _buildEmptyWaypoints(isDark)
         else
-          ...List.generate(_waypointControllers.length, (index) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: AppSizes.md),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFd1fae5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontSize: AppSizes.fontSizeSm,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF065f46),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppSizes.md),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _waypointControllers[index],
-                      decoration: InputDecoration(
-                        hintText: 'e.g., Valencia, Malaybalay',
-                        prefixIcon: const Icon(Icons.place_outlined),
-                      ),
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                  ),
-                  const SizedBox(width: AppSizes.sm),
-                  IconButton(
-                    onPressed: () => _removeWaypoint(index),
-                    icon: const Icon(Icons.remove_circle_outline_rounded),
-                    color: AppColors.error,
-                    tooltip: 'Remove stop',
-                  ),
-                ],
-              ),
-            );
-          }),
+          _buildWaypointsList(isDark),
       ],
     );
   }
 
-  Widget _buildActions(bool isDark) {
+  Widget _buildEmptyWaypoints(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.paddingXxl),
+      decoration: BoxDecoration(
+        color: AppColors.getBackgroundColor(isDark),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(
+          color: AppColors.getBorderColor(isDark),
+          style: BorderStyle.solid,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.location_off,
+            size: 48,
+            color: AppColors.getTextColor(isDark, isPrimary: false),
+          ),
+          const SizedBox(height: AppSizes.md),
+          Text(
+            'No waypoints selected',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: AppColors.getTextColor(isDark),
+            ),
+          ),
+          const SizedBox(height: AppSizes.sm),
+          Text(
+            'Click "Select Waypoints" to choose route stops',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.getTextColor(isDark, isPrimary: false),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaypointsList(bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.getBackgroundColor(isDark),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(color: AppColors.getBorderColor(isDark)),
+      ),
+      child: ReorderableListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _selectedWaypoints.length,
+        onReorder: _reorderWaypoint,
+        itemBuilder: (context, index) {
+          final waypoint = _selectedWaypoints[index];
+          final isOrigin = index == 0;
+          final isDestination = index == _selectedWaypoints.length - 1;
+
+          return _buildWaypointCard(
+            waypoint,
+            index,
+            isOrigin,
+            isDestination,
+            isDark,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWaypointCard(
+    WaypointModel waypoint,
+    int index,
+    bool isOrigin,
+    bool isDestination,
+    bool isDark,
+  ) {
+    return Container(
+      key: ValueKey(waypoint.id),
+      margin: const EdgeInsets.all(AppSizes.paddingSm),
+      decoration: BoxDecoration(
+        color: AppColors.getSurfaceColor(isDark),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+        border: Border.all(
+          color: isOrigin || isDestination
+              ? AppColors.primary.withOpacity(0.5)
+              : AppColors.getBorderColor(isDark),
+        ),
+      ),
+      child: ListTile(
+        leading: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.drag_handle,
+              color: AppColors.getTextColor(isDark, isPrimary: false),
+            ),
+            const SizedBox(width: AppSizes.sm),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: isOrigin || isDestination
+                    ? AppColors.primary
+                    : AppColors.getTextColor(
+                        isDark,
+                        isPrimary: false,
+                      ).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+              ),
+              child: Center(
+                child: Text(
+                  (index + 1).toString(),
+                  style: TextStyle(
+                    color: isOrigin || isDestination
+                        ? Colors.white
+                        : AppColors.getTextColor(isDark),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        title: Row(
+          children: [
+            Text(
+              waypoint.name,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.getTextColor(isDark),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (isOrigin) ...[
+              const SizedBox(width: AppSizes.sm),
+              _buildBadge('Origin', AppColors.success, isDark),
+            ],
+            if (isDestination) ...[
+              const SizedBox(width: AppSizes.sm),
+              _buildBadge('Destination', AppColors.error, isDark),
+            ],
+          ],
+        ),
+        subtitle: Text(
+          waypoint.coordinatesFormatted,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.getTextColor(isDark, isPrimary: false),
+          ),
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.close, size: AppSizes.iconSm),
+          color: AppColors.error,
+          onPressed: () => _removeWaypoint(index),
+          tooltip: 'Remove',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBadge(String label, Color color, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSizes.paddingSm,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(AppSizes.radiusSm),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.bold,
+          fontSize: 10,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActions() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        OutlinedButton(
-          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         const SizedBox(width: AppSizes.md),
         ElevatedButton(
-          onPressed: _isLoading ? null : _handleSubmit,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.success,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSizes.xxl,
-              vertical: AppSizes.md,
-            ),
-          ),
+          onPressed: _isLoading ? null : _save,
           child: _isLoading
               ? const SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(isEditing ? 'Save Changes' : 'Create Route'),
+              : Text(widget.route != null ? 'Update' : 'Create'),
         ),
       ],
+    );
+  }
+}
+
+// Waypoint Selector Dialog
+class _WaypointSelectorDialog extends StatefulWidget {
+  final List<WaypointModel> availableWaypoints;
+  final List<WaypointModel> selectedWaypoints;
+
+  const _WaypointSelectorDialog({
+    required this.availableWaypoints,
+    required this.selectedWaypoints,
+  });
+
+  @override
+  State<_WaypointSelectorDialog> createState() =>
+      _WaypointSelectorDialogState();
+}
+
+class _WaypointSelectorDialogState extends State<_WaypointSelectorDialog> {
+  late List<WaypointModel> _selected;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = List.from(widget.selectedWaypoints);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<WaypointModel> get _filteredWaypoints {
+    if (_searchQuery.isEmpty) return widget.availableWaypoints;
+
+    final query = _searchQuery.toLowerCase();
+    return widget.availableWaypoints.where((w) {
+      return w.name.toLowerCase().contains(query) ||
+          (w.description?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Dialog(
+      backgroundColor: AppColors.getSurfaceColor(isDark),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+      ),
+      child: Container(
+        width: 600,
+        height: 600,
+        padding: const EdgeInsets.all(AppSizes.paddingXxl),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select Waypoints',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppColors.getTextColor(isDark),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: AppSizes.md),
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                hintText: 'Search waypoints...',
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
+              },
+            ),
+            const SizedBox(height: AppSizes.md),
+            Expanded(
+              child: ListView.builder(
+                itemCount: _filteredWaypoints.length,
+                itemBuilder: (context, index) {
+                  final waypoint = _filteredWaypoints[index];
+                  final isSelected = _selected.any((w) => w.id == waypoint.id);
+
+                  return CheckboxListTile(
+                    value: isSelected,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value == true) {
+                          _selected.add(waypoint);
+                        } else {
+                          _selected.removeWhere((w) => w.id == waypoint.id);
+                        }
+                      });
+                    },
+                    title: Text(waypoint.name),
+                    subtitle: Text(waypoint.coordinatesFormatted),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: AppSizes.md),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: AppSizes.md),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, _selected),
+                  child: Text('Select (${_selected.length})'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

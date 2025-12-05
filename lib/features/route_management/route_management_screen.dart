@@ -77,71 +77,65 @@ class _RouteManagementScreenState extends State<RouteManagementScreen>
 
   Future<void> _showAddDialog() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final routeProvider = Provider.of<RouteProvider>(context, listen: false);
 
-    final suggestedCode = await routeProvider.generateNextRouteCode();
+    // ✅ FIXED: Check if user is authenticated before showing dialog
+    if (authProvider.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User not authenticated'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
-    final result = await showDialog<RouteModel>(
+    // ✅ FIXED: RouteDialog doesn't accept parameters - it reads from providers
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => RouteDialog(
-        companyId: authProvider.companyId!,
-        adminId: authProvider.adminId!,
-        suggestedRouteCode: suggestedCode,
-      ),
+      builder: (context) => const RouteDialog(),
     );
 
-    if (result != null && mounted) {
-      final routeCode = await routeProvider.generateNextRouteCode();
-      final routeWithCode = result.copyWith(routeCode: routeCode);
-
-      print('🎯 Creating route with auto-generated code: $routeCode');
-
-      final success = await routeProvider.createRoute(routeWithCode);
-
-      if (success != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Route created successfully with code: $routeCode'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      } else if (routeProvider.error != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(routeProvider.error!),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Route created successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
     }
   }
 
   Future<void> _showEditDialog(RouteModel route) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final routeProvider = Provider.of<RouteProvider>(context, listen: false);
 
-    final result = await showDialog<RouteModel>(
+    // ✅ FIXED: Check if user is authenticated before showing dialog
+    if (authProvider.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User not authenticated'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    // ✅ FIXED: Pass only the route - dialog reads user info from providers
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => RouteDialog(
-        route: route,
-        companyId: authProvider.companyId!,
-        adminId: authProvider.adminId!,
-      ),
+      builder: (context) => RouteDialog(route: route),
     );
 
-    if (result != null && mounted) {
-      final success = await routeProvider.updateRoute(route.id, result);
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Route updated successfully'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Route updated successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
     }
   }
 
