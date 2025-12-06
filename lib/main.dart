@@ -6,12 +6,12 @@ import 'app.dart';
 import 'providers/theme_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'features/auth/auth_provider.dart';
-import 'features/bus_management/bus_provider.dart';
-import 'features/account_management/account_provider.dart';
-import 'features/route_management/route_provider.dart';
-import 'features/dashboard/dashboard_analytics_provider.dart';
-import 'features/activity_logs/activity_log_provider.dart';
-import 'features/waypoint_management/waypoint_provider.dart';
+import 'features/admin/bus_management/bus_provider.dart';
+import 'features/admin/account_management/account_provider.dart';
+import 'features/admin/route_management/route_provider.dart';
+import 'features/admin/dashboard/dashboard_analytics_provider.dart';
+import 'features/admin/activity_logs/activity_log_provider.dart';
+import 'features/admin/waypoint_management/waypoint_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

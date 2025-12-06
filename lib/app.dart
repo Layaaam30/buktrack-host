@@ -3,14 +3,14 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/auth_provider.dart';
-import 'features/dashboard/dashboard_screen.dart';
-import 'features/bus_management/bus_management_screen.dart';
-import 'features/account_management/account_management_screen.dart';
-import 'features/route_management/route_management_screen.dart';
-import 'features/activity_logs/activity_logs_screen.dart';
+import 'features/admin/dashboard/dashboard_screen.dart';
+import 'features/admin/bus_management/bus_management_screen.dart';
+import 'features/admin/account_management/account_management_screen.dart';
+import 'features/admin/route_management/route_management_screen.dart';
+import 'features/admin/activity_logs/activity_logs_screen.dart';
 import 'shared/widgets/layouts/app_shell.dart';
 import 'providers/theme_provider.dart';
-import 'features/waypoint_management/waypoint_management_screen.dart';
+import 'features/admin/waypoint_management/waypoint_management_screen.dart';
 
 class BukTrackApp extends StatelessWidget {
   const BukTrackApp({super.key});
