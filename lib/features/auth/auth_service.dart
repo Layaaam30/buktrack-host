@@ -2,156 +2,225 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bcrypt/bcrypt.dart';
 
-/// Authentication Service with Laravel-compatible bcrypt verification
-/// This is Laravel's standard password hashing method
-/// Optimized for lowest network latency
 class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static const String _adminIdKey = 'current_admin_id';
+  static const String _userIdKey = 'current_user_id';
+  static const String _userTypeKey = 'user_type';
   static const String _isAuthenticatedKey = 'is_authenticated';
 
-  /// Sign in with email and password
-  /// Returns admin data if successful, null otherwise
-  /// Optimized for lowest network latency with indexed query
+  static const String _adminIdKey = 'current_admin_id';
+
+  // superadmin credentials
+  static const String _superAdminEmail = 'superadmin@buktrack.com';
+  static const String _superAdminPassword = 'SuperAdmin@2024!';
+  static const String _superAdminId = 'superadmin_001';
+  static const String _superAdminName = 'Super Administrator';
+  static const String _superAdminUsername = 'superadmin';
+
   Future<Map<String, dynamic>?> signInWithEmailPassword({
     required String email,
     required String password,
   }) async {
     try {
-      // Query Firestore for admin with matching email
-      // Using indexed field for faster query performance
-      final adminQuery = await _firestore
-          .collection('admins')
-          .where('email', isEqualTo: email.toLowerCase().trim())
-          .limit(1)
-          .get();
+      final trimmedEmail = email.toLowerCase().trim();
 
-      if (adminQuery.docs.isEmpty) {
-        throw 'No admin account found with this email';
+      if (trimmedEmail == _superAdminEmail) {
+        return await _signInAsSuperAdmin(password);
       }
 
-      final adminDoc = adminQuery.docs.first;
-      final adminData = adminDoc.data();
-
-      // Get bcrypt hash from Firestore (Laravel's 'password_hash' field)
-      final passwordHash = adminData['password_hash'] as String?;
-
-      if (passwordHash == null) {
-        throw 'Password data not found';
-      }
-
-      // Verify password using bcrypt (locally, no network call)
-      // This is compatible with Laravel's Hash::check()
-      final isPasswordValid = BCrypt.checkpw(password, passwordHash);
-
-      if (!isPasswordValid) {
-        throw 'Incorrect password';
-      }
-
-      // Store admin ID in shared preferences for persistent session
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_adminIdKey, adminDoc.id);
-      await prefs.setBool(_isAuthenticatedKey, true);
-
-      // Return admin data with ID
-      final result = Map<String, dynamic>.from(adminData);
-      result['admin_ID'] = adminDoc.id;
-
-      // Remove sensitive data before returning
-      result.remove('password');
-      result.remove('password_hash');
-
-      return result;
+      return await _signInAsAdmin(trimmedEmail, password);
     } catch (e) {
       throw e.toString();
     }
   }
 
-  /// Sign out
+  Future<Map<String, dynamic>?> _signInAsSuperAdmin(String password) async {
+    if (password != _superAdminPassword) {
+      throw 'Incorrect password';
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userIdKey, _superAdminId);
+    await prefs.setString(_userTypeKey, 'superadmin');
+    await prefs.setBool(_isAuthenticatedKey, true);
+
+    await prefs.setString(_adminIdKey, _superAdminId);
+
+    return {
+      'superadmin_ID': _superAdminId,
+      'name': _superAdminName,
+      'email': _superAdminEmail,
+      'username': _superAdminUsername,
+      'user_type': 'superadmin',
+      'created_at': DateTime.now(),
+    };
+  }
+
+  Future<Map<String, dynamic>?> _signInAsAdmin(
+    String email,
+    String password,
+  ) async {
+    final adminQuery = await _firestore
+        .collection('admins')
+        .where('email', isEqualTo: email)
+        .limit(1)
+        .get();
+
+    if (adminQuery.docs.isEmpty) {
+      throw 'No admin account found with this email';
+    }
+
+    final adminDoc = adminQuery.docs.first;
+    final adminData = adminDoc.data();
+
+    final passwordHash = adminData['password_hash'] as String?;
+
+    if (passwordHash == null) {
+      throw 'Password data not found';
+    }
+
+    final isPasswordValid = BCrypt.checkpw(password, passwordHash);
+
+    if (!isPasswordValid) {
+      throw 'Incorrect password';
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_userIdKey, adminDoc.id);
+    await prefs.setString(_userTypeKey, 'admin');
+    await prefs.setBool(_isAuthenticatedKey, true);
+
+    await prefs.setString(_adminIdKey, adminDoc.id);
+
+    final result = Map<String, dynamic>.from(adminData);
+    result['admin_ID'] = adminDoc.id;
+    result['user_type'] = 'admin';
+
+    result.remove('password');
+    result.remove('password_hash');
+
+    return result;
+  }
+
   Future<void> signOut() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_adminIdKey);
+    await prefs.remove(_userIdKey);
+    await prefs.remove(_userTypeKey);
     await prefs.setBool(_isAuthenticatedKey, false);
+
+    await prefs.remove(_adminIdKey);
   }
 
-  /// Get admin data by admin ID
-  Future<Map<String, dynamic>?> getAdminData(String adminId) async {
+  Future<Map<String, dynamic>?> getUserData(
+    String userId,
+    String userType,
+  ) async {
     try {
-      final adminDoc = await _firestore.collection('admins').doc(adminId).get();
+      if (userType == 'superadmin') {
+        return {
+          'superadmin_ID': _superAdminId,
+          'name': _superAdminName,
+          'email': _superAdminEmail,
+          'username': _superAdminUsername,
+          'user_type': 'superadmin',
+          'created_at': DateTime.now(),
+        };
+      } else {
+        final adminDoc = await _firestore
+            .collection('admins')
+            .doc(userId)
+            .get();
 
-      if (!adminDoc.exists) {
-        return null;
+        if (!adminDoc.exists) {
+          return null;
+        }
+
+        final adminData = Map<String, dynamic>.from(adminDoc.data()!);
+        adminData['admin_ID'] = adminDoc.id;
+        adminData['user_type'] = 'admin';
+
+        adminData.remove('password');
+        adminData.remove('password_hash');
+
+        return adminData;
       }
-
-      final adminData = Map<String, dynamic>.from(adminDoc.data()!);
-      adminData['admin_ID'] = adminDoc.id;
-
-      // Remove sensitive data
-      adminData.remove('password');
-      adminData.remove('password_hash');
-
-      return adminData;
     } catch (e) {
       throw e.toString();
     }
   }
 
-  /// Check if user is signed in
+  Future<Map<String, dynamic>?> getAdminData(String adminId) async {
+    return await getUserData(adminId, 'admin');
+  }
+
   Future<bool> isSignedIn() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isAuth = prefs.getBool(_isAuthenticatedKey) ?? false;
-      final adminId = prefs.getString(_adminIdKey);
+      final userId = prefs.getString(_userIdKey);
+      final userType = prefs.getString(_userTypeKey);
 
-      return isAuth && adminId != null && adminId.isNotEmpty;
+      return isAuth && userId != null && userType != null;
     } catch (e) {
       return false;
     }
   }
 
-  /// Get current admin ID from storage
-  Future<String?> getCurrentAdminId() async {
+  Future<String?> getCurrentUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString(_adminIdKey);
+      return prefs.getString(_userIdKey);
     } catch (e) {
       return null;
     }
   }
 
-  /// Verify current session is still valid
+  Future<String?> getCurrentUserType() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_userTypeKey);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<String?> getCurrentAdminId() async {
+    return await getCurrentUserId();
+  }
+
   Future<bool> verifySession() async {
     if (!await isSignedIn()) {
       return false;
     }
 
-    final adminId = await getCurrentAdminId();
-    if (adminId == null) {
+    final userId = await getCurrentUserId();
+    final userType = await getCurrentUserType();
+
+    if (userId == null || userType == null) {
       return false;
     }
 
     try {
-      final adminDoc = await _firestore.collection('admins').doc(adminId).get();
-      return adminDoc.exists;
+      if (userType == 'superadmin') {
+        return userId == _superAdminId;
+      } else {
+        final adminDoc = await _firestore
+            .collection('admins')
+            .doc(userId)
+            .get();
+        return adminDoc.exists;
+      }
     } catch (e) {
       return false;
     }
   }
 
-  /// Hash password for storage (when creating new admin)
-  /// Compatible with Laravel's Hash::make()
   String hashPassword(String password) {
     return BCrypt.hashpw(password, BCrypt.gensalt());
   }
 
-  /// Reset password (placeholder - implement based on your requirements)
   Future<void> resetPassword(String email) async {
-    // TODO: Implement password reset logic
-    // This could involve:
-    // 1. Sending email with reset link
-    // 2. Generating temporary password
-    // 3. Updating password hash in Firestore
     throw 'Password reset not yet implemented';
   }
 }

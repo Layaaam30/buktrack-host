@@ -12,8 +12,8 @@ import '../bus_management/bus_provider.dart';
 import '../../auth/auth_provider.dart';
 import 'package:tabler_icons/tabler_icons.dart';
 import 'bus_location_service.dart';
+import 'dart:ui' as ui;
 
-/// Map filter options
 enum MapFilter {
   busStops,
   busTerminals,
@@ -57,31 +57,26 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
   late AnimationController _bounceController;
   late Animation<double> _bounceAnimation;
 
-  // Bus location service
   final BusLocationService _busLocationService = BusLocationService();
 
-  // Default center (Cagayan de Oro, Philippines)
-  static const LatLng _defaultCenter = LatLng(8.4542, 124.6319);
+  static const LatLng _defaultCenter = LatLng(8.0542, 125.0095);
 
   Set<Marker> _markers = {};
   bool _isMapReady = false;
   bool _isDialogOpen = false;
 
-  // Active filters
   final Set<MapFilter> _activeFilters = {
     MapFilter.busStops,
     MapFilter.busTerminals,
   };
 
-  // Bus locations (optimized conditional fetching)
   List<BusLocationData> _busLocations = [];
   StreamSubscription<List<BusLocationData>>? _busLocationSubscription;
   bool _isLoadingBusLocations = false;
 
-  // Custom marker colors
-  static const Color terminalColor = Color(0xFFEF4444); // Red for terminals
-  static const Color busStopColor = Color(0xFFF59E0B); // Amber for bus stops
-  static const Color busColor = Color(0xFF3B82F6); // Blue for active buses
+  static const Color terminalColor = Color(0xFFEF4444);
+  static const Color busStopColor = Color(0xFFF59E0B);
+  static const Color busColor = Color(0xFF3B82F6);
 
   @override
   void initState() {
@@ -135,33 +130,65 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
     _updateMarkers();
   }
 
-  void _updateMarkers() {
-    final waypointProvider = context.read<WaypointProvider>();
-    final markers = <Marker>{};
+  Future<BitmapDescriptor> _createCustomColorMarker(Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
 
-    // Add waypoint markers based on active filters
+    final Paint paint = Paint()..color = color;
+    final Paint borderPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke;
+
+    const double size = 48.0;
+    const double radius = 20.0;
+
+    canvas.drawCircle(const Offset(size / 2, size / 2), radius, borderPaint);
+
+    canvas.drawCircle(const Offset(size / 2, size / 2), radius - 2, paint);
+
+    canvas.drawCircle(
+      const Offset(size / 2, size / 2),
+      6,
+      Paint()..color = Colors.white,
+    );
+
+    final img = await pictureRecorder.endRecording().toImage(
+      size.toInt(),
+      size.toInt(),
+    );
+
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(data!.buffer.asUint8List());
+  }
+
+  void _updateMarkers() async {
+    final waypointProvider = context.read<WaypointProvider>();
+    final newMarkers = <Marker>{};
+
+    final terminalMarker = await _createCustomColorMarker(terminalColor);
+    final busStopMarker = await _createCustomColorMarker(busStopColor);
+    final busMarker = await _createCustomColorMarker(busColor);
+
     for (var waypoint in waypointProvider.waypoints) {
       final isBusStop = waypoint.category == WaypointCategory.busStop;
       final isBusTerminal = waypoint.category == WaypointCategory.busTerminal;
 
-      // Check if this waypoint type is in active filters
       final shouldShow =
           (isBusStop && _activeFilters.contains(MapFilter.busStops)) ||
           (isBusTerminal && _activeFilters.contains(MapFilter.busTerminals));
 
       if (!shouldShow) continue;
 
-      final markerColor = isBusTerminal ? terminalColor : busStopColor;
+      final markerIcon = isBusTerminal ? terminalMarker : busStopMarker;
 
-      markers.add(
+      newMarkers.add(
         Marker(
           markerId: MarkerId('waypoint_${waypoint.id}'),
           position: LatLng(waypoint.latitude, waypoint.longitude),
-          icon: BitmapDescriptor.defaultMarkerWithHue(
-            _getHueFromColor(markerColor),
-          ),
+          icon: markerIcon,
           infoWindow: InfoWindow(
-            title: '${isBusTerminal ? '🚉 ' : '🚏 '}${waypoint.name}',
+            title: waypoint.name,
             snippet: waypoint.description ?? 'Tap to edit',
             onTap: () => _showWaypointDialog(waypoint: waypoint),
           ),
@@ -169,18 +196,16 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
       );
     }
 
-    // Add bus markers if filter is active (optimized - only fetches when needed)
+    // Add bus markers
     if (_activeFilters.contains(MapFilter.currentBusLocations)) {
       for (var bus in _busLocations) {
-        markers.add(
+        newMarkers.add(
           Marker(
             markerId: MarkerId('bus_${bus.id}'),
             position: LatLng(bus.latitude, bus.longitude),
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-              _getHueFromColor(busColor),
-            ),
+            icon: busMarker,
             infoWindow: InfoWindow(
-              title: '🚌 ${bus.plateNumber}',
+              title: bus.plateNumber,
               snippet:
                   'Status: ${bus.status} • Updated: ${_formatTime(bus.lastUpdated)}',
             ),
@@ -189,13 +214,11 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
       }
     }
 
-    setState(() {
-      _markers = markers;
-    });
-
-    print(
-      '📍 Updated ${markers.length} markers on map (filters: ${_activeFilters.length} active)',
-    );
+    if (mounted) {
+      setState(() {
+        _markers = newMarkers;
+      });
+    }
   }
 
   /// Toggle map filter
@@ -287,13 +310,6 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
         name.contains('depot') ||
         description.contains('terminal') ||
         description.contains('depot');
-  }
-
-  double _getHueFromColor(Color color) {
-    if (color == terminalColor) return BitmapDescriptor.hueRed;
-    if (color == busStopColor) return BitmapDescriptor.hueOrange;
-    if (color == busColor) return BitmapDescriptor.hueBlue;
-    return BitmapDescriptor.hueRed;
   }
 
   void _onMapTap(LatLng location) {
@@ -610,7 +626,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // WAYPOINT INFO (Name + ID)
+          // WAYPOINT INFO
           cell(
             flex: 2,
             child: Row(
@@ -652,6 +668,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                         ),
                       ),
                       const SizedBox(height: 2),
+                      // ✅ Display Waypoint ID (WP-001, WP-002, etc.)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -659,19 +676,19 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                         ),
                         decoration: BoxDecoration(
                           color: isDark
-                              ? const Color(0xFF1e293b)
-                              : const Color(0xFFdbeafe),
+                              ? AppColors.hoverDark
+                              : const Color(0xFFf3f4f6),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          waypoint.id,
+                          waypoint.waypointId,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             fontFamily: 'monospace',
                             color: isDark
-                                ? const Color(0xFF60a5fa)
-                                : const Color(0xFF1e40af),
+                                ? AppColors.textSecondaryDark
+                                : const Color(0xFF6b7280),
                           ),
                         ),
                       ),
@@ -681,7 +698,6 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
               ],
             ),
           ),
-
           // DESCRIPTION
           cell(
             flex: 2,
@@ -821,6 +837,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
     );
   }
 
+  // Also update the mobile card to show waypoint_id
   Widget _buildMobileWaypointCard(WaypointModel waypoint, bool isDark) {
     final isTerminal = _isTerminal(waypoint);
 
@@ -860,45 +877,53 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                       Row(
                         children: [
                           Expanded(
-                            child: Text(
-                              waypoint.name,
-                              style: TextStyle(
-                                fontSize: AppSizes.fontSizeMd,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? AppColors.textPrimaryDark
-                                    : AppColors.textPrimaryLight,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  waypoint.name,
+                                  style: TextStyle(
+                                    fontSize: AppSizes.fontSizeMd,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight,
+                                  ),
+                                ),
+                                // ✅ Display Waypoint ID (WP-001, WP-002, etc.)
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? AppColors.hoverDark
+                                        : const Color(0xFFf3f4f6),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    waypoint.waypointId,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      fontFamily: 'monospace',
+                                      color: isDark
+                                          ? AppColors.textSecondaryDark
+                                          : const Color(0xFF6b7280),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? const Color(0xFF1e293b)
-                                  : const Color(0xFFdbeafe),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              waypoint.id,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                fontFamily: 'monospace',
-                                color: isDark
-                                    ? const Color(0xFF60a5fa)
-                                    : const Color(0xFF1e40af),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                       if (waypoint.description != null &&
-                          waypoint.description!.isNotEmpty)
+                          waypoint.description!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
                         Text(
                           waypoint.description!,
                           style: TextStyle(
@@ -908,6 +933,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                                 : AppColors.textSecondaryLight,
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -1512,7 +1538,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
             GoogleMap(
               initialCameraPosition: const CameraPosition(
                 target: _defaultCenter,
-                zoom: 12,
+                zoom: 8,
               ),
               onMapCreated: _onMapCreated,
               onTap: _onMapTap,
@@ -1588,8 +1614,8 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
   Widget _buildMapFilterChips(bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: AppSizes.paddingLg,
-        vertical: AppSizes.paddingMd,
+        horizontal: AppSizes.paddingXl,
+        vertical: AppSizes.paddingLg,
       ),
       decoration: BoxDecoration(
         color: AppColors.getSurfaceColor(isDark),
@@ -1602,7 +1628,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
           Row(
             children: [
               Icon(
-                TablerIcons.filter,
+                Icons.filter_list_rounded,
                 size: 18,
                 color: AppColors.getTextColor(isDark, isPrimary: false),
               ),
@@ -1623,7 +1649,7 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     valueColor: AlwaysStoppedAnimation<Color>(
-                      AppColors.primary,
+                      const Color(0xFF0ea5e9),
                     ),
                   ),
                 ),
@@ -1661,12 +1687,12 @@ class _WaypointManagementScreenState extends State<WaypointManagementScreen>
                   ],
                 ),
                 onSelected: (_) => _toggleFilter(filter),
-                selectedColor: AppColors.primary,
+                selectedColor: const Color(0xFF0ea5e9),
                 checkmarkColor: Colors.white,
                 backgroundColor: AppColors.getSurfaceColor(isDark),
                 side: BorderSide(
                   color: isActive
-                      ? AppColors.primary
+                      ? const Color(0xFF0ea5e9)
                       : AppColors.getBorderColor(isDark),
                 ),
                 labelStyle: TextStyle(

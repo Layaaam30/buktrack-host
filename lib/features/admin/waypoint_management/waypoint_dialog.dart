@@ -31,16 +31,17 @@ class _WaypointDialogState extends State<WaypointDialog> {
   final _searchController = TextEditingController();
 
   bool _isLoading = false;
+  bool _isLoadingPreview = true;
   bool _showManualEntry = false;
   String? _selectedAddress;
   WaypointCategory _selectedCategory = WaypointCategory.busStop;
-  String _previewWaypointId = 'WP-001';
+  String _previewWaypointId = 'Loading...';
 
   @override
   void initState() {
     super.initState();
     _initializeFields();
-    _calculateWaypointId();
+    _loadPreviewWaypointId();
   }
 
   void _initializeFields() {
@@ -63,20 +64,43 @@ class _WaypointDialogState extends State<WaypointDialog> {
     }
   }
 
-  void _calculateWaypointId() {
-    if (widget.waypoint == null) {
-      // Calculate next waypoint ID for new waypoints
-      final waypointProvider = context.read<WaypointProvider>();
-      final waypointCount = waypointProvider.waypoints.length;
-      setState(() {
-        _previewWaypointId =
-            'WP-${(waypointCount + 1).toString().padLeft(3, '0')}';
-      });
-    } else {
+  /// ✅ Load preview waypoint ID (async for new waypoints)
+  Future<void> _loadPreviewWaypointId() async {
+    if (widget.waypoint != null) {
       // Show existing waypoint ID for editing
       setState(() {
         _previewWaypointId = widget.waypoint!.waypointId;
+        _isLoadingPreview = false;
       });
+    } else {
+      // Calculate next waypoint ID for new waypoints
+      try {
+        final waypointProvider = context.read<WaypointProvider>();
+        final authProvider = context.read<AuthProvider>();
+
+        if (authProvider.currentUser == null) {
+          setState(() {
+            _previewWaypointId = 'WP-001';
+            _isLoadingPreview = false;
+          });
+          return;
+        }
+
+        // Get current waypoint count to calculate next ID
+        final waypointCount = waypointProvider.waypoints.length;
+
+        setState(() {
+          _previewWaypointId =
+              'WP-${(waypointCount + 1).toString().padLeft(3, '0')}';
+          _isLoadingPreview = false;
+        });
+      } catch (e) {
+        print('Error loading preview ID: $e');
+        setState(() {
+          _previewWaypointId = 'WP-001';
+          _isLoadingPreview = false;
+        });
+      }
     }
   }
 
@@ -120,14 +144,22 @@ class _WaypointDialogState extends State<WaypointDialog> {
       final latitude = double.parse(_latitudeController.text);
       final longitude = double.parse(_longitudeController.text);
 
+      print('📝 Creating waypoint from dialog');
+      print('   Name: ${_nameController.text.trim()}');
+      print('   Is editing: ${widget.waypoint != null}');
+      print('   Existing waypoint_id: ${widget.waypoint?.waypointId}');
+
       final waypoint = WaypointModel(
         id: widget.waypoint?.id ?? '',
+        waypointId:
+            widget.waypoint?.waypointId ??
+            '', // Will be generated in service for new waypoints
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
         location: GeoPoint(latitude, longitude),
-        order: widget.waypoint?.order ?? waypointProvider.waypoints.length,
+        order: widget.waypoint?.order ?? 0, // Will be set in service
         address: _selectedAddress,
         category: _selectedCategory,
         companyId: authProvider.currentUser!.companyId,
@@ -136,6 +168,10 @@ class _WaypointDialogState extends State<WaypointDialog> {
         createdByAdmin:
             widget.waypoint?.createdByAdmin ?? authProvider.currentUser!.id,
         updatedByAdmin: authProvider.currentUser!.id,
+      );
+
+      print(
+        '   Waypoint object waypoint_id before save: ${waypoint.waypointId}',
       );
 
       bool success;
@@ -400,13 +436,24 @@ class _WaypointDialogState extends State<WaypointDialog> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  _previewWaypointId,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                _isLoadingPreview
+                    ? SizedBox(
+                        height: 20,
+                        width: 80,
+                        child: LinearProgressIndicator(
+                          backgroundColor: AppColors.primary.withOpacity(0.2),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.primary,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        _previewWaypointId,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ],
             ),
           ),

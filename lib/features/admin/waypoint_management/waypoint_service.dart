@@ -10,6 +10,53 @@ class WaypointService {
     return _firestore.collection('waypoints');
   }
 
+  /// ✅ Generate next waypoint ID for a company
+  Future<String> _generateWaypointId(String companyId) async {
+    try {
+      print('🔢 Generating waypoint ID for company: $companyId');
+
+      // Get all waypoints for this company to find the highest waypoint_id number
+      final snapshot = await _waypointsCollection
+          .where('company_ID', isEqualTo: companyId)
+          .get();
+
+      int maxNumber = 0;
+
+      // Parse existing waypoint_ids to find the highest number
+      for (var doc in snapshot.docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          final waypointId = data['waypoint_id'] as String?;
+
+          if (waypointId != null && waypointId.startsWith('WP-')) {
+            // Extract number from "WP-001" format
+            final numberStr = waypointId.substring(3);
+            final number = int.tryParse(numberStr);
+            if (number != null && number > maxNumber) {
+              maxNumber = number;
+            }
+          }
+        } catch (e) {
+          print('⚠️ Error parsing waypoint_id from doc ${doc.id}: $e');
+        }
+      }
+
+      final nextNumber = maxNumber + 1;
+      final newWaypointId = 'WP-${nextNumber.toString().padLeft(3, '0')}';
+
+      print('   Found ${snapshot.docs.length} existing waypoints');
+      print('   Highest number found: $maxNumber');
+      print('   Generated new ID: $newWaypointId');
+
+      return newWaypointId;
+    } catch (e) {
+      print('❌ Error generating waypoint ID: $e');
+      // Fallback: Start from WP-001
+      print('   Using fallback: WP-001');
+      return 'WP-001';
+    }
+  }
+
   /// Get all waypoints for a company with real-time updates
   Stream<List<WaypointModel>> getWaypointsStream(String companyId) {
     print('🔥 Starting real-time stream for waypoints in company: $companyId');
@@ -29,7 +76,9 @@ class WaypointService {
             try {
               final waypoint = WaypointModel.fromFirestore(doc);
               waypoints.add(waypoint);
-              print('   ✅ Successfully parsed: ${waypoint.name}');
+              print(
+                '   ✅ Successfully parsed: ${waypoint.name} (${waypoint.waypointId})',
+              );
             } catch (e) {
               print('❌ Error parsing waypoint ${doc.id}: $e');
             }
@@ -60,7 +109,7 @@ class WaypointService {
         try {
           final waypoint = WaypointModel.fromFirestore(doc);
           waypoints.add(waypoint);
-          print('✅ Loaded waypoint: ${waypoint.name}');
+          print('✅ Loaded waypoint: ${waypoint.name} (${waypoint.waypointId})');
         } catch (e) {
           print('❌ Error parsing waypoint ${doc.id}: $e');
         }
@@ -87,7 +136,7 @@ class WaypointService {
       }
 
       final waypoint = WaypointModel.fromFirestore(doc);
-      print('✅ Loaded waypoint: ${waypoint.name}');
+      print('✅ Loaded waypoint: ${waypoint.name} (${waypoint.waypointId})');
       return waypoint;
     } catch (e) {
       print('❌ Error fetching waypoint: $e');
@@ -102,16 +151,45 @@ class WaypointService {
       print('   Location: ${waypoint.coordinatesFormatted}');
       print('   Company ID: ${waypoint.companyId}');
 
-      final waypointData = waypoint
-          .copyWith(createdAt: DateTime.now(), updatedAt: DateTime.now())
-          .toFirestore();
+      // ✅ Generate the next waypoint ID
+      final generatedWaypointId = await _generateWaypointId(waypoint.companyId);
+      print('   Generated Waypoint ID: $generatedWaypointId');
+
+      // Get the current count for order (not using existing order value)
+      final snapshot = await _waypointsCollection
+          .where('company_ID', isEqualTo: waypoint.companyId)
+          .get();
+      final nextOrder = snapshot.docs.length;
+      print('   Next order: $nextOrder');
+
+      // Create waypoint with generated ID and correct order
+      final updatedWaypoint = waypoint.copyWith(
+        waypointId: generatedWaypointId,
+        order: nextOrder,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      print(
+        '   Final waypoint_id before saving: ${updatedWaypoint.waypointId}',
+      );
+      print('   Final order: ${updatedWaypoint.order}');
+
+      final waypointData = updatedWaypoint.toFirestore();
+      print('   Firestore data waypoint_id: ${waypointData['waypoint_id']}');
+      print('   Firestore data order: ${waypointData['order']}');
 
       final docRef = await _waypointsCollection.add(waypointData);
 
-      print('✅ Waypoint created with ID: ${docRef.id}');
+      print('✅ Waypoint created successfully!');
+      print('   Firestore Doc ID: ${docRef.id}');
+      print('   Waypoint ID: $generatedWaypointId');
+      print('   Order: $nextOrder');
+
       return docRef.id;
-    } catch (e) {
+    } catch (e, stackTrace) {
       print('❌ Error creating waypoint: $e');
+      print('   Stack trace: $stackTrace');
       throw Exception('Failed to create waypoint: $e');
     }
   }
@@ -119,7 +197,7 @@ class WaypointService {
   /// Update an existing waypoint
   Future<void> updateWaypoint(String waypointId, WaypointModel waypoint) async {
     try {
-      print('✏️ Updating waypoint: $waypointId');
+      print('✏️ Updating waypoint: $waypointId (${waypoint.waypointId})');
 
       final waypointData = waypoint
           .copyWith(updatedAt: DateTime.now())
@@ -239,6 +317,7 @@ class WaypointService {
         try {
           final waypoint = WaypointModel.fromFirestore(doc);
           if (waypoint.name.toLowerCase().contains(lowerQuery) ||
+              waypoint.waypointId.toLowerCase().contains(lowerQuery) ||
               (waypoint.description?.toLowerCase().contains(lowerQuery) ??
                   false) ||
               (waypoint.address?.toLowerCase().contains(lowerQuery) ?? false)) {

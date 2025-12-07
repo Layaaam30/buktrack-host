@@ -40,6 +40,7 @@ enum WaypointCategory {
 
 class WaypointModel {
   final String id;
+  final String waypointId;
   final String name;
   final String? description;
   final GeoPoint location;
@@ -55,6 +56,7 @@ class WaypointModel {
 
   WaypointModel({
     required this.id,
+    required this.waypointId,
     required this.name,
     this.description,
     required this.location,
@@ -76,12 +78,20 @@ class WaypointModel {
         throw Exception('Document data is null');
       }
 
+      final order = _parseInt(data['order']) ?? 0;
+
+      // ✅ Read waypoint_id from Firestore, fallback to generated ID
+      final waypointId =
+          data['waypoint_id']?.toString() ??
+          'WP-${(order + 1).toString().padLeft(3, '0')}';
+
       return WaypointModel(
         id: doc.id,
+        waypointId: waypointId,
         name: data['name']?.toString() ?? '',
         description: data['description']?.toString(),
         location: data['location'] as GeoPoint? ?? const GeoPoint(0, 0),
-        order: _parseInt(data['order']) ?? 0,
+        order: order,
         address: data['address']?.toString(),
         category: WaypointCategory.fromString(data['category']?.toString()),
         companyId: data['company_ID']?.toString() ?? '',
@@ -99,12 +109,18 @@ class WaypointModel {
   }
 
   factory WaypointModel.fromMap(Map<String, dynamic> data, {String? id}) {
+    final order = _parseInt(data['order']) ?? 0;
+    final waypointId =
+        data['waypoint_id']?.toString() ??
+        'WP-${(order + 1).toString().padLeft(3, '0')}';
+
     return WaypointModel(
       id: id ?? data['id']?.toString() ?? '',
+      waypointId: waypointId,
       name: data['name']?.toString() ?? '',
       description: data['description']?.toString(),
       location: data['location'] as GeoPoint? ?? const GeoPoint(0, 0),
-      order: _parseInt(data['order']) ?? 0,
+      order: order,
       address: data['address']?.toString(),
       category: WaypointCategory.fromString(data['category']?.toString()),
       companyId: data['company_ID']?.toString() ?? '',
@@ -133,6 +149,7 @@ class WaypointModel {
 
   Map<String, dynamic> toFirestore() {
     return {
+      'waypoint_id': waypointId, // ✅ Store readable ID in Firestore
       'name': name,
       'description': description,
       'location': location,
@@ -150,6 +167,7 @@ class WaypointModel {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
+      'waypoint_id': waypointId,
       'name': name,
       'description': description,
       'location': location,
@@ -161,6 +179,7 @@ class WaypointModel {
 
   WaypointModel copyWith({
     String? id,
+    String? waypointId,
     String? name,
     String? description,
     GeoPoint? location,
@@ -175,6 +194,7 @@ class WaypointModel {
   }) {
     return WaypointModel(
       id: id ?? this.id,
+      waypointId: waypointId ?? this.waypointId,
       name: name ?? this.name,
       description: description ?? this.description,
       location: location ?? this.location,
@@ -194,12 +214,7 @@ class WaypointModel {
   String get coordinatesFormatted =>
       '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}';
   String get latitudeFormatted => latitude.toStringAsFixed(6);
-
   String get longitudeFormatted => longitude.toStringAsFixed(6);
-
-  String get waypointId {
-    return 'WP-${(order + 1).toString().padLeft(3, '0')}';
-  }
 
   String get shortId => id.length > 8 ? id.substring(0, 8) : id;
 
@@ -214,6 +229,6 @@ class WaypointModel {
 
   @override
   String toString() {
-    return 'WaypointModel(id: $id, name: $name, category: ${category.displayName}, order: $order, location: $coordinatesFormatted)';
+    return 'WaypointModel(id: $id, waypointId: $waypointId, name: $name, category: ${category.displayName}, order: $order, location: $coordinatesFormatted)';
   }
 }

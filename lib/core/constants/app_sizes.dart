@@ -1,5 +1,3 @@
-/// BukTrack App Sizes and Spacing
-/// Consistent sizing system across the app
 class AppSizes {
   AppSizes._();
 
@@ -10,7 +8,12 @@ class AppSizes {
   static const double lg = 16.0;
   static const double xl = 20.0;
   static const double xxl = 24.0;
-  static const double xxxl = 32.0;
+  static const double xxxl = 28.0;
+  static const double xxxxl = 32.0;
+  static const double xxxxxl = 36.0;
+  static const double xxxxxxl = 40.0;
+  static const double xxxxxxxl = 44.0;
+  static const double xxxxxxxxl = 48.0;
 
   // ========== Padding ==========
   static const double paddingXs = 4.0;

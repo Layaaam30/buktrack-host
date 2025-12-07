@@ -16,13 +16,25 @@ class SuperAdminUser {
   });
 
   factory SuperAdminUser.fromMap(Map<String, dynamic> data) {
+    DateTime parseCreatedAt(dynamic value) {
+      if (value == null) {
+        return DateTime.now();
+      } else if (value is DateTime) {
+        return value;
+      } else if (value.runtimeType.toString() == 'Timestamp') {
+        return (value as dynamic).toDate();
+      } else {
+        return DateTime.now();
+      }
+    }
+
     return SuperAdminUser(
       id: data['superadmin_ID'] as String,
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       username: data['username'] as String? ?? '',
       phoneNumber: data['phone_number'] as String?,
-      createdAt: (data['created_at'] as dynamic)?.toDate() ?? DateTime.now(),
+      createdAt: parseCreatedAt(data['created_at']),
     );
   }
 

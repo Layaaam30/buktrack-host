@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import '../../core/constants/app_sizes.dart';
-import 'superadmin_provider.dart';
-import 'company.dart';
+import 'package:tabler_icons/tabler_icons.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
+import '../company_management/company_management_service.dart';
 
 class CompanyManagementScreen extends StatefulWidget {
   const CompanyManagementScreen({super.key});
@@ -14,461 +14,629 @@ class CompanyManagementScreen extends StatefulWidget {
 }
 
 class _CompanyManagementScreenState extends State<CompanyManagementScreen> {
+  final _service = CompanyManagementService();
+  List<Map<String, dynamic>> _companies = [];
+  bool _isLoading = true;
   String _searchQuery = '';
-  Company? _selectedCompany;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SuperAdminProvider>().loadCompanies();
-    });
+    _loadCompanies();
+  }
+
+  Future<void> _loadCompanies() async {
+    setState(() => _isLoading = true);
+    try {
+      final companies = await _service.getAllCompanies();
+      setState(() {
+        _companies = companies;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+      _showError('Failed to load companies: $e');
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredCompanies {
+    if (_searchQuery.isEmpty) return _companies;
+    return _companies.where((company) {
+      final name = company['company_name']?.toString().toLowerCase() ?? '';
+      final email = company['email']?.toString().toLowerCase() ?? '';
+      final query = _searchQuery.toLowerCase();
+      return name.contains(query) || email.contains(query);
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF111827),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF1F2937),
-        elevation: 0,
-        title: Text(
-          'Company Management',
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Consumer<SuperAdminProvider>(
-        builder: (context, provider, _) {
-          final filteredCompanies = provider.companies.where((company) {
-            return company.name.toLowerCase().contains(
-                  _searchQuery.toLowerCase(),
-                ) ||
-                (company.email?.toLowerCase().contains(
-                      _searchQuery.toLowerCase(),
-                    ) ??
-                    false);
-          }).toList();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-          return Row(
-            children: [
-              // Companies List
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    // Search Bar
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: TextField(
-                        onChanged: (value) =>
-                            setState(() => _searchQuery = value),
-                        style: GoogleFonts.poppins(color: Colors.white),
-                        decoration: InputDecoration(
-                          hintText: 'Search companies...',
-                          hintStyle: GoogleFonts.poppins(
-                            color: const Color(0xFF6B7280),
-                          ),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: Color(0xFF9CA3AF),
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFF1F2937),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF374151),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: Color(0xFF8B5CF6),
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Companies List
-                    Expanded(
-                      child: provider.isLoading && provider.companies.isEmpty
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: Color(0xFF8B5CF6),
-                              ),
-                            )
-                          : filteredCompanies.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No companies found',
-                                style: GoogleFonts.poppins(
-                                  color: const Color(0xFF9CA3AF),
-                                ),
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                              ),
-                              itemCount: filteredCompanies.length,
-                              itemBuilder: (context, index) {
-                                final company = filteredCompanies[index];
-                                final isSelected =
-                                    _selectedCompany?.id == company.id;
-
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: isSelected
-                                        ? const Color(
-                                            0xFF8B5CF6,
-                                          ).withOpacity(0.1)
-                                        : const Color(0xFF1F2937),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? const Color(0xFF8B5CF6)
-                                          : const Color(0xFF374151),
-                                      width: isSelected ? 2 : 1,
-                                    ),
-                                  ),
-                                  child: ListTile(
-                                    onTap: () {
-                                      setState(
-                                        () => _selectedCompany = company,
-                                      );
-                                      provider.loadAdminsByCompany(company.id);
-                                    },
-                                    leading: Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF8B5CF6,
-                                        ).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: const Icon(
-                                        Icons.business_rounded,
-                                        color: Color(0xFF8B5CF6),
-                                      ),
-                                    ),
-                                    title: Text(
-                                      company.name,
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    subtitle: company.email != null
-                                        ? Text(
-                                            company.email!,
-                                            style: GoogleFonts.poppins(
-                                              color: const Color(0xFF9CA3AF),
-                                              fontSize: 12,
-                                            ),
-                                          )
-                                        : null,
-                                    trailing: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: company.isActive
-                                            ? const Color(
-                                                0xFF10B981,
-                                              ).withOpacity(0.1)
-                                            : const Color(
-                                                0xFF6B7280,
-                                              ).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        company.isActive
-                                            ? 'Active'
-                                            : 'Inactive',
-                                        style: GoogleFonts.poppins(
-                                          color: company.isActive
-                                              ? const Color(0xFF10B981)
-                                              : const Color(0xFF9CA3AF),
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-              // Company Details & Admins
-              Expanded(
-                flex: 3,
-                child: _selectedCompany == null
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.business_outlined,
-                              color: const Color(0xFF6B7280),
-                              size: 64,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Select a company to view details',
-                              style: GoogleFonts.poppins(
-                                color: const Color(0xFF9CA3AF),
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : _buildCompanyDetails(provider, _selectedCompany!),
-              ),
-            ],
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddCompanyDialog(context),
-        backgroundColor: const Color(0xFF8B5CF6),
-        icon: const Icon(Icons.add),
-        label: Text('Add Company', style: GoogleFonts.poppins()),
+    return Padding(
+      padding: const EdgeInsets.all(AppSizes.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(isDark),
+          const SizedBox(height: AppSizes.xxl),
+          _buildSearchAndActions(isDark),
+          const SizedBox(height: AppSizes.xl),
+          Expanded(child: _buildCompanyList(isDark)),
+        ],
       ),
     );
   }
 
-  Widget _buildCompanyDetails(SuperAdminProvider provider, Company company) {
+  Widget _buildHeader(bool isDark) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(AppSizes.md),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+            ),
+            borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF3B82F6).withOpacity(0.3),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            TablerIcons.building,
+            color: Colors.white,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: AppSizes.lg),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Company Management',
+                style: GoogleFonts.poppins(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: isDark
+                      ? AppColors.textPrimaryDark
+                      : AppColors.textPrimaryLight,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Manage all registered companies and their information',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSearchAndActions(bool isDark) {
     return Container(
-      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSizes.lg),
       decoration: BoxDecoration(
-        color: const Color(0xFF1F2937),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF374151)),
+        color: isDark ? AppColors.surfaceDark : Colors.white,
+        borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+        border: Border.all(
+          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Company Header
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF8B5CF6), Color(0xFF6366F1)],
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.business_rounded,
-                    color: Colors.white,
-                    size: 32,
+          Expanded(
+            child: TextField(
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: InputDecoration(
+                hintText: 'Search by name or email...',
+                hintStyle: GoogleFonts.poppins(
+                  color: isDark
+                      ? AppColors.textTertiaryDark
+                      : AppColors.textTertiaryLight,
+                ),
+                prefixIcon: Icon(
+                  TablerIcons.search,
+                  size: 20,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+                filled: true,
+                fillColor: isDark
+                    ? const Color(0xFF1F2937)
+                    : const Color(0xFFF9FAFB),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: AppSizes.lg,
+                  vertical: AppSizes.md,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF3B82F6),
+                    width: 2,
                   ),
                 ),
-                const SizedBox(width: 16),
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSizes.lg),
+          ElevatedButton.icon(
+            onPressed: () => _showCompanyDialog(),
+            icon: const Icon(TablerIcons.plus, size: 20),
+            label: Text(
+              'Add Company',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSizes.xl,
+                vertical: AppSizes.lg,
+              ),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompanyList(bool isDark) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_filteredCompanies.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(AppSizes.xl),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1F2937)
+                    : const Color(0xFFF9FAFB),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _searchQuery.isEmpty
+                    ? TablerIcons.building
+                    : TablerIcons.search_off,
+                size: 64,
+                color: isDark
+                    ? AppColors.textTertiaryDark
+                    : AppColors.textTertiaryLight,
+              ),
+            ),
+            const SizedBox(height: AppSizes.xl),
+            Text(
+              _searchQuery.isEmpty ? 'No companies yet' : 'No companies found',
+              style: GoogleFonts.poppins(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(height: AppSizes.sm),
+            Text(
+              _searchQuery.isEmpty
+                  ? 'Add your first company to get started'
+                  : 'Try adjusting your search criteria',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: isDark
+                    ? AppColors.textTertiaryDark
+                    : AppColors.textTertiaryLight,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Always use list for narrow screens
+        if (constraints.maxWidth < 700) {
+          return ListView.separated(
+            itemCount: _filteredCompanies.length,
+            separatorBuilder: (context, index) =>
+                const SizedBox(height: AppSizes.md),
+            itemBuilder: (context, index) {
+              final company = _filteredCompanies[index];
+              return _buildCompanyCard(company, isDark, isCompact: true);
+            },
+          );
+        }
+
+        // Grid for wider screens
+        final crossAxisCount = constraints.maxWidth > 1200 ? 3 : 2;
+        return GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: AppSizes.lg,
+            mainAxisSpacing: AppSizes.lg,
+            childAspectRatio: 1.2,
+          ),
+          itemCount: _filteredCompanies.length,
+          itemBuilder: (context, index) {
+            final company = _filteredCompanies[index];
+            return _buildCompanyCard(company, isDark);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCompanyCard(
+    Map<String, dynamic> company,
+    bool isDark, {
+    bool isCompact = false,
+  }) {
+    // Compact horizontal layout for mobile
+    if (isCompact) {
+      return Container(
+        padding: const EdgeInsets.all(AppSizes.lg),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : Colors.white,
+          borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+          border: Border.all(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF3B82F6).withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    TablerIcons.building,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.md),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        company.name,
+                        company['company_name'] ?? 'Unknown',
                         style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (company.email != null)
-                        Text(
-                          company.email!,
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFF9CA3AF),
-                            fontSize: 14,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      child: Text('Edit Company', style: GoogleFonts.poppins()),
-                      onTap: () => Future.delayed(
-                        Duration.zero,
-                        () => _showEditCompanyDialog(context, company),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      child: Text(
-                        'Delete Company',
-                        style: GoogleFonts.poppins(color: Colors.red),
-                      ),
-                      onTap: () => Future.delayed(
-                        Duration.zero,
-                        () => _confirmDeleteCompany(context, company),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const Divider(color: Color(0xFF374151), height: 1),
-          // Admins Section
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Company Admins',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
                           fontSize: 16,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.bold,
+                          color: isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      ElevatedButton.icon(
-                        onPressed: () =>
-                            _showAddAdminDialog(context, company.id),
-                        icon: const Icon(Icons.add, size: 18),
-                        label: Text(
-                          'Add Admin',
-                          style: GoogleFonts.poppins(fontSize: 14),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF8B5CF6),
-                          foregroundColor: Colors.white,
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              TablerIcons.bus,
+                              size: 12,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${company['total_buses'] ?? 0} Buses',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.success,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: AppSizes.md),
+            _buildCompactInfoRow(
+              TablerIcons.mail,
+              company['email'] ?? 'No email',
+              isDark,
+            ),
+            const SizedBox(height: AppSizes.sm),
+            _buildCompactInfoRow(
+              TablerIcons.phone,
+              company['contact_number'] ?? 'No contact',
+              isDark,
+            ),
+            const SizedBox(height: AppSizes.sm),
+            _buildCompactInfoRow(
+              TablerIcons.map_pin,
+              company['address'] ?? 'No address',
+              isDark,
+              maxLines: 2,
+            ),
+            const SizedBox(height: AppSizes.md),
+            Row(
+              children: [
                 Expanded(
-                  child: provider.isLoading
-                      ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF8B5CF6),
-                          ),
-                        )
-                      : provider.admins.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.person_outline,
-                                color: const Color(0xFF6B7280),
-                                size: 48,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No admins yet',
-                                style: GoogleFonts.poppins(
-                                  color: const Color(0xFF9CA3AF),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          itemCount: provider.admins.length,
-                          itemBuilder: (context, index) {
-                            final admin = provider.admins[index];
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF111827),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: const Color(0xFF374151),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: const Color(0xFF8B5CF6),
-                                    child: Text(
-                                      admin['name']
-                                              ?.substring(0, 1)
-                                              .toUpperCase() ??
-                                          'A',
-                                      style: GoogleFonts.poppins(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          admin['name'] ?? 'Unknown',
-                                          style: GoogleFonts.poppins(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        Text(
-                                          admin['email'] ?? '',
-                                          style: GoogleFonts.poppins(
-                                            color: const Color(0xFF9CA3AF),
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      color: Color(0xFFEF4444),
-                                    ),
-                                    onPressed: () => _confirmDeleteAdmin(
-                                      context,
-                                      admin['admin_ID'],
-                                      admin['name'],
-                                      company.id,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showCompanyDialog(company: company),
+                    icon: const Icon(TablerIcons.edit, size: 16),
+                    label: const Text('Edit', style: TextStyle(fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF3B82F6),
+                      side: const BorderSide(color: Color(0xFF3B82F6)),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppSizes.sm,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: AppSizes.sm),
+                OutlinedButton(
+                  onPressed: () => _deleteCompany(company['id']),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: BorderSide(color: AppColors.error),
+                    padding: const EdgeInsets.all(AppSizes.sm),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                    ),
+                  ),
+                  child: const Icon(TablerIcons.trash, size: 16),
                 ),
               ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Card layout for grid view
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : Colors.white,
+        borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+        border: Border.all(
+          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header with gradient
+          Container(
+            padding: const EdgeInsets.all(AppSizes.lg),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppSizes.radiusXl),
+                topRight: Radius.circular(AppSizes.radiusXl),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    TablerIcons.building,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: AppSizes.sm),
+                Expanded(
+                  child: Text(
+                    company['company_name'] ?? 'Unknown',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSizes.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildInfoRow(
+                    TablerIcons.mail,
+                    'Email',
+                    company['email'] ?? 'No email',
+                    isDark,
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+                  _buildInfoRow(
+                    TablerIcons.phone,
+                    'Contact',
+                    company['contact_number'] ?? 'No contact',
+                    isDark,
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+                  _buildInfoRow(
+                    TablerIcons.map_pin,
+                    'Address',
+                    company['address'] ?? 'No address',
+                    isDark,
+                    maxLines: 2,
+                  ),
+                  const Spacer(),
+
+                  // Bus count badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: AppColors.success.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          TablerIcons.bus,
+                          size: 14,
+                          color: AppColors.success,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${company['total_buses'] ?? 0} Buses',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppSizes.sm),
+
+                  // Action buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showCompanyDialog(company: company),
+                          icon: const Icon(TablerIcons.edit, size: 16),
+                          label: const Text(
+                            'Edit',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF3B82F6),
+                            side: const BorderSide(color: Color(0xFF3B82F6)),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: AppSizes.sm,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusMd,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSizes.xs),
+                      OutlinedButton(
+                        onPressed: () => _deleteCompany(company['id']),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                          side: BorderSide(color: AppColors.error),
+                          padding: const EdgeInsets.all(AppSizes.sm),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppSizes.radiusMd,
+                            ),
+                          ),
+                        ),
+                        child: const Icon(TablerIcons.trash, size: 16),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -476,145 +644,138 @@ class _CompanyManagementScreenState extends State<CompanyManagementScreen> {
     );
   }
 
-  void _showAddCompanyDialog(BuildContext context) {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final phoneController = TextEditingController();
-    final addressController = TextEditingController();
-    final descriptionController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Add New Company',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+  Widget _buildCompactInfoRow(
+    IconData icon,
+    String value,
+    bool isDark, {
+    int maxLines = 1,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: isDark
+              ? AppColors.textTertiaryDark
+              : AppColors.textTertiaryLight,
         ),
-        content: SingleChildScrollView(
+        const SizedBox(width: AppSizes.sm),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
+            maxLines: maxLines,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value,
+    bool isDark, {
+    int maxLines = 1,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF9FAFB),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(
+            icon,
+            size: 16,
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
+          ),
+        ),
+        const SizedBox(width: AppSizes.sm),
+        Expanded(
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: 'Company Name *',
-                  labelStyle: GoogleFonts.poppins(),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? AppColors.textTertiaryDark
+                      : AppColors.textTertiaryLight,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  labelStyle: GoogleFonts.poppins(),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addressController,
-                decoration: InputDecoration(
-                  labelText: 'Address',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-                maxLines: 3,
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Company name is required',
-                      style: GoogleFonts.poppins(),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<SuperAdminProvider>()
-                  .createCompany(
-                    name: nameController.text.trim(),
-                    email: emailController.text.trim().isEmpty
-                        ? null
-                        : emailController.text.trim(),
-                    phoneNumber: phoneController.text.trim().isEmpty
-                        ? null
-                        : phoneController.text.trim(),
-                    address: addressController.text.trim().isEmpty
-                        ? null
-                        : addressController.text.trim(),
-                    description: descriptionController.text.trim().isEmpty
-                        ? null
-                        : descriptionController.text.trim(),
-                  );
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Company created successfully'
-                          : 'Failed to create company',
-                      style: GoogleFonts.poppins(),
-                    ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
-            },
-            child: Text('Create', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
+      ],
     );
   }
 
-  void _showEditCompanyDialog(BuildContext context, Company company) {
-    final nameController = TextEditingController(text: company.name);
-    final emailController = TextEditingController(text: company.email ?? '');
+  void _showCompanyDialog({Map<String, dynamic>? company}) {
+    final isEdit = company != null;
+    final nameController = TextEditingController(
+      text: company?['company_name'],
+    );
+    final emailController = TextEditingController(text: company?['email']);
     final phoneController = TextEditingController(
-      text: company.phoneNumber ?? '',
+      text: company?['contact_number'],
     );
-    final addressController = TextEditingController(
-      text: company.address ?? '',
-    );
-    final descriptionController = TextEditingController(
-      text: company.description ?? '',
-    );
+    final addressController = TextEditingController(text: company?['address']);
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Edit Company',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusXl),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF3B82F6), Color(0xFF2563EB)],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isEdit ? TablerIcons.edit : TablerIcons.plus,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AppSizes.md),
+            Text(
+              isEdit ? 'Edit Company' : 'Add Company',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ],
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -623,40 +784,44 @@ class _CompanyManagementScreenState extends State<CompanyManagementScreen> {
               TextField(
                 controller: nameController,
                 decoration: InputDecoration(
-                  labelText: 'Company Name *',
-                  labelStyle: GoogleFonts.poppins(),
+                  labelText: 'Company Name',
+                  prefixIcon: const Icon(TablerIcons.building, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSizes.md),
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  labelStyle: GoogleFonts.poppins(),
+                  prefixIcon: const Icon(TablerIcons.mail, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSizes.md),
               TextField(
                 controller: phoneController,
                 decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  labelStyle: GoogleFonts.poppins(),
+                  labelText: 'Contact Number',
+                  prefixIcon: const Icon(TablerIcons.phone, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSizes.md),
               TextField(
                 controller: addressController,
                 decoration: InputDecoration(
                   labelText: 'Address',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: descriptionController,
-                decoration: InputDecoration(
-                  labelText: 'Description',
-                  labelStyle: GoogleFonts.poppins(),
+                  prefixIcon: const Icon(TablerIcons.map_pin, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+                  ),
                 ),
                 maxLines: 3,
               ),
@@ -665,265 +830,122 @@ class _CompanyManagementScreenState extends State<CompanyManagementScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<SuperAdminProvider>()
-                  .updateCompany(company.id, {
-                    'name': nameController.text.trim(),
-                    'email': emailController.text.trim().isEmpty
-                        ? null
-                        : emailController.text.trim(),
-                    'phone_number': phoneController.text.trim().isEmpty
-                        ? null
-                        : phoneController.text.trim(),
-                    'address': addressController.text.trim().isEmpty
-                        ? null
-                        : addressController.text.trim(),
-                    'description': descriptionController.text.trim().isEmpty
-                        ? null
-                        : descriptionController.text.trim(),
-                  });
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Company updated successfully'
-                          : 'Failed to update company',
-                      style: GoogleFonts.poppins(),
-                    ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
-            },
-            child: Text('Update', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteCompany(BuildContext context, Company company) {
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete Company',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to delete ${company.name}? This will deactivate the company.',
-          style: GoogleFonts.poppins(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<SuperAdminProvider>()
-                  .deleteCompany(company.id);
-              if (context.mounted) {
-                setState(() => _selectedCompany = null);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Company deleted successfully'
-                          : 'Failed to delete company',
-                      style: GoogleFonts.poppins(),
-                    ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete', style: GoogleFonts.poppins()),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddAdminDialog(BuildContext context, String companyId) {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final usernameController = TextEditingController();
-    final passwordController = TextEditingController();
-    final phoneController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Add Admin',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  labelText: 'Name *',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email *',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: usernameController,
-                decoration: InputDecoration(
-                  labelText: 'Username *',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: passwordController,
-                decoration: InputDecoration(
-                  labelText: 'Password *',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                decoration: InputDecoration(
-                  labelText: 'Phone Number',
-                  labelStyle: GoogleFonts.poppins(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty ||
-                  emailController.text.trim().isEmpty ||
-                  usernameController.text.trim().isEmpty ||
-                  passwordController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Please fill all required fields',
-                      style: GoogleFonts.poppins(),
-                    ),
-                  ),
-                );
-                return;
-              }
-
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<SuperAdminProvider>()
-                  .createAdmin(
-                    companyId: companyId,
-                    name: nameController.text.trim(),
-                    email: emailController.text.trim(),
-                    username: usernameController.text.trim(),
-                    password: passwordController.text,
-                    phoneNumber: phoneController.text.trim().isEmpty
-                        ? null
-                        : phoneController.text.trim(),
+              try {
+                if (isEdit) {
+                  await _service.updateCompany(
+                    companyId: company['id'],
+                    companyName: nameController.text,
+                    email: emailController.text,
+                    contactNumber: phoneController.text,
+                    address: addressController.text,
                   );
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Admin created successfully'
-                          : 'Failed to create admin',
-                      style: GoogleFonts.poppins(),
-                    ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
+                } else {
+                  await _service.createCompany(
+                    companyName: nameController.text,
+                    email: emailController.text,
+                    contactNumber: phoneController.text,
+                    address: addressController.text,
+                  );
+                }
+                if (mounted) {
+                  Navigator.pop(context);
+                  _loadCompanies();
+                  _showSuccess(isEdit ? 'Company updated' : 'Company created');
+                }
+              } catch (e) {
+                _showError(e.toString());
               }
             },
-            child: Text('Create', style: GoogleFonts.poppins()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF3B82F6),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+              ),
+            ),
+            child: Text(isEdit ? 'Update' : 'Create'),
           ),
         ],
       ),
     );
   }
 
-  void _confirmDeleteAdmin(
-    BuildContext context,
-    String adminId,
-    String adminName,
-    String companyId,
-  ) {
-    showDialog(
+  Future<void> _deleteCompany(String companyId) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete Admin',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusXl),
         ),
-        content: Text(
-          'Are you sure you want to delete $adminName?',
-          style: GoogleFonts.poppins(),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                TablerIcons.alert_triangle,
+                color: AppColors.error,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: AppSizes.md),
+            Text(
+              'Delete Company',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Are you sure? This will also delete all associated admins.',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text('Cancel', style: GoogleFonts.poppins()),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              final success = await context
-                  .read<SuperAdminProvider>()
-                  .deleteAdmin(adminId);
-              if (context.mounted) {
-                await context.read<SuperAdminProvider>().loadAdminsByCompany(
-                  companyId,
-                );
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      success
-                          ? 'Admin deleted successfully'
-                          : 'Failed to delete admin',
-                      style: GoogleFonts.poppins(),
-                    ),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Delete', style: GoogleFonts.poppins()),
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
+              ),
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _service.deleteCompany(companyId, deleteAdmins: true);
+        _loadCompanies();
+        _showSuccess('Company deleted');
+      } catch (e) {
+        _showError(e.toString());
+      }
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: AppColors.success),
     );
   }
 }
