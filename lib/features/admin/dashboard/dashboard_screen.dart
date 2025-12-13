@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../auth/auth_provider.dart';
 import 'dashboard_analytics_provider.dart';
 import 'dashboard_analytics_service.dart';
+import 'export_controls_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -203,7 +204,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 if (!isMobile) ...[
                   const SizedBox(width: AppSizes.xl),
-                  _buildRefreshButton(analyticsProvider),
+                  Row(
+                    children: [
+                      _buildRefreshButton(analyticsProvider),
+                      const SizedBox(width: 12),
+                      const ExportControlsWidget(),
+                    ],
+                  ),
                 ],
               ],
             ),
@@ -212,6 +219,11 @@ class _DashboardScreenState extends State<DashboardScreen>
               SizedBox(
                 width: double.infinity,
                 child: _buildRefreshButton(analyticsProvider),
+              ),
+              const SizedBox(height: 12),
+              const SizedBox(
+                width: double.infinity,
+                child: ExportControlsWidget(),
               ),
             ],
           ],

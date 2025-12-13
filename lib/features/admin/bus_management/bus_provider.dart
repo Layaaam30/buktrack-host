@@ -11,7 +11,7 @@ class BusProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   String _currentCompanyId = '';
-  String _currentAdminId = ''; // ADD THIS FIELD
+  String _currentAdminId = '';
   StreamSubscription<List<Bus>>? _busesSubscription;
 
   String _selectedStatus = 'All Status';
@@ -22,7 +22,7 @@ class BusProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
   String get currentCompanyId => _currentCompanyId;
-  String get currentAdminId => _currentAdminId; // ADD THIS GETTER
+  String get currentAdminId => _currentAdminId;
   String get selectedStatus => _selectedStatus;
   String get selectedRoute => _selectedRoute;
   String get searchQuery => _searchQuery;
@@ -71,7 +71,6 @@ class BusProvider with ChangeNotifier {
   }
 
   /// Set current company ID and admin ID, then start listening
-  /// This is the method that waypoint management expects
   void setCompanyAndAdmin(String companyId, String adminId) {
     print('🔧 BusProvider.setCompanyAndAdmin called');
     print('   Company ID: $companyId');
@@ -80,25 +79,21 @@ class BusProvider with ChangeNotifier {
 
     if (_currentCompanyId == companyId && _currentAdminId == adminId) {
       print('   ⚠️ IDs unchanged, skipping initialization');
-      return; // Avoid redundant calls
+      return;
     }
 
     _currentCompanyId = companyId;
     _currentAdminId = adminId;
 
     print('   ✅ IDs updated, cancelling previous subscription');
-    // Cancel previous subscription
     _busesSubscription?.cancel();
 
-    // Start new real-time subscription
     print('   📡 Starting new real-time subscription');
     _startRealtimeListener();
 
     notifyListeners();
   }
 
-  /// Set current company ID and start check updates (LEGACY METHOD - KEPT FOR COMPATIBILITY)
-  /// Calls setCompanyAndAdmin with empty adminId
   @Deprecated('Use setCompanyAndAdmin instead')
   void setCompanyId(String companyId) {
     setCompanyAndAdmin(companyId, '');
@@ -182,9 +177,10 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  // ========== IMPLEMENTS CRUD OPERATIONS FOR BUS ==========
+  // ========== OPTIMIZED CRUD OPERATIONS ==========
 
   Future<String?> createBus(Bus bus) async {
+    // Keep loading state for create operations
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -203,24 +199,23 @@ class BusProvider with ChangeNotifier {
   }
 
   Future<bool> updateBus(String busId, Bus bus) async {
-    _isLoading = true;
+    // ⭐ FIX: Don't set loading state - real-time listener will update UI
+    // This prevents the table from reloading
     _error = null;
-    notifyListeners();
 
     try {
       await _busService.updateBus(busId, bus);
-      _isLoading = false;
-      notifyListeners();
+      // Real-time listener will automatically update the UI
       return true;
     } catch (e) {
       _error = e.toString();
-      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
   Future<bool> deleteBus(String busId) async {
+    // Keep loading state for delete operations
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -238,11 +233,13 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Update bus status
+  /// Update bus status - optimized for real-time updates
   Future<bool> updateBusStatus(String busId, String status) async {
+    // ⭐ FIX: Don't set loading state
+    _error = null;
+
     try {
       await _busService.updateBusStatus(busId, status);
-
       // Real-time listener will update the UI automatically
       return true;
     } catch (e) {
@@ -252,11 +249,13 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Update bus passenger count
+  /// Update bus passenger count - optimized
   Future<bool> updatePassengerCount(String busId, int count) async {
+    // ⭐ FIX: Don't set loading state
+    _error = null;
+
     try {
       await _busService.updatePassengerCount(busId, count);
-
       // Real-time listener will update the UI automatically
       return true;
     } catch (e) {
@@ -266,8 +265,10 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Assign driver to bus
+  /// Assign driver to bus - optimized
   Future<bool> assignDriver(String busId, String driverId) async {
+    _error = null;
+
     try {
       await _busService.assignDriver(busId, driverId);
       return true;
@@ -278,8 +279,10 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Assign conductor to bus
+  /// Assign conductor to bus - optimized
   Future<bool> assignConductor(String busId, String conductorId) async {
+    _error = null;
+
     try {
       await _busService.assignConductor(busId, conductorId);
       return true;
@@ -290,8 +293,10 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  /// Assign route to bus
+  /// Assign route to bus - optimized
   Future<bool> assignRoute(String busId, String routeId) async {
+    _error = null;
+
     try {
       await _busService.assignRoute(busId, routeId);
       return true;

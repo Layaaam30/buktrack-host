@@ -22,6 +22,7 @@ import 'shared/widgets/layouts/app_shell.dart';
 import 'shared/widgets/layouts/superadmin_app_shell.dart';
 
 import 'providers/theme_provider.dart';
+import 'splash_screen.dart';
 
 class BukTrackApp extends StatelessWidget {
   const BukTrackApp({super.key});
@@ -40,8 +41,10 @@ class BukTrackApp extends StatelessWidget {
 
           home: Consumer<AuthProvider>(
             builder: (context, authProvider, child) {
-              if (!authProvider.isAuthenticated ||
-                  !authProvider.isInitialized) {
+              if (!authProvider.isInitialized) {
+                return const SplashScreen();
+              }
+              if (!authProvider.isAuthenticated) {
                 return const LoginScreen();
               }
 

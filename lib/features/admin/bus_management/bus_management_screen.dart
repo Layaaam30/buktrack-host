@@ -8,6 +8,7 @@ import 'bus_model.dart';
 import 'bus_provider.dart';
 import 'bus_dialog.dart';
 import '../../../shared/widgets/common/confirmation_dialog.dart';
+import '../../../shared/widgets/common/stat_card.dart';
 
 class BusManagementScreen extends StatefulWidget {
   const BusManagementScreen({super.key});
@@ -16,7 +17,6 @@ class BusManagementScreen extends StatefulWidget {
   State<BusManagementScreen> createState() => _BusManagementScreenState();
 }
 
-// class _BusManagementScreenState extends State<BusManagementScreen> {
 class _BusManagementScreenState extends State<BusManagementScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _bounceController;
@@ -203,6 +203,226 @@ class _BusManagementScreenState extends State<BusManagementScreen>
     }
   }
 
+  /// Handle Update Bus Status
+  Future<void> _handleUpdateStatus(Bus bus) async {
+    final statusOptions = ['active', 'inactive', 'maintenance'];
+
+    String current = bus.status.toLowerCase();
+
+    String? selected = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 24,
+            vertical: 24,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Header
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Update Status - ${bus.plateNumber}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
+                              ),
+                            ),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: const Color(0xFFf97316),
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Color(0xFFf97316),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+
+                    // Body
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'Bus Status *',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppColors.borderDark
+                                    : const Color(0xFFD1D5DB),
+                              ),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: current,
+                                icon: const Icon(Icons.keyboard_arrow_down),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() => current = value);
+                                },
+                                items: statusOptions.map((status) {
+                                  return DropdownMenuItem<String>(
+                                    value: status,
+                                    child: Text(_formatStatusDisplay(status)),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Note: Status changes will affect bus availability for route assignments',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.textTertiaryDark
+                                  : const Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+                    const Divider(height: 1),
+
+                    // Footer buttons
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: isDark
+                                    ? AppColors.borderDark
+                                    : const Color(0xFFD1D5DB),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFf97316), Color(0xFFea580c)],
+                              ),
+                            ),
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  Navigator.of(context).pop(current),
+                              icon: const Icon(
+                                TablerIcons.refresh,
+                                color: Colors.white,
+                              ),
+                              label: const Text('Update Status'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      final busProvider = context.read<BusProvider>();
+
+      // Create updated bus with new status
+      final updatedBus = bus.copyWith(
+        status: selected,
+        lastUpdateTimestamp: DateTime.now(),
+      );
+
+      final success = await busProvider.updateBus(bus.id, updatedBus);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Bus status updated to "$selected"'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else if (mounted && busProvider.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update status: ${busProvider.error}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   List<Bus> _getSortedBuses(List<Bus> buses) {
     final sorted = List<Bus>.from(buses);
 
@@ -243,6 +463,19 @@ class _BusManagementScreenState extends State<BusManagementScreen>
     });
   }
 
+  String _formatStatusDisplay(String status) {
+    switch (status.toLowerCase()) {
+      case 'active':
+        return 'Active';
+      case 'inactive':
+        return 'Inactive';
+      case 'maintenance':
+        return 'Maintenance';
+      default:
+        return status;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -262,7 +495,7 @@ class _BusManagementScreenState extends State<BusManagementScreen>
               const SizedBox(height: AppSizes.xxl),
 
               // Stats Cards
-              _buildStatsCards(isDark, busProvider),
+              _buildStatsCards(busProvider),
               const SizedBox(height: AppSizes.xxl),
 
               // Filters Section
@@ -437,7 +670,7 @@ class _BusManagementScreenState extends State<BusManagementScreen>
     );
   }
 
-  Widget _buildStatsCards(bool isDark, BusProvider busProvider) {
+  Widget _buildStatsCards(BusProvider busProvider) {
     final stats = busProvider.stats;
 
     return LayoutBuilder(
@@ -457,93 +690,33 @@ class _BusManagementScreenState extends State<BusManagementScreen>
           mainAxisSpacing: AppSizes.xl,
           childAspectRatio: 2.5,
           children: [
-            _buildStatCard(
-              'Total Buses',
-              stats['total'].toString(),
-              TablerIcons.bus,
-              AppColors.info,
-              isDark,
+            StatCard(
+              title: 'Total Buses',
+              value: stats['total'].toString(),
+              icon: TablerIcons.bus,
+              color: AppColors.info,
             ),
-            _buildStatCard(
-              'Active',
-              stats['active'].toString(),
-              TablerIcons.circle_check,
-              AppColors.success,
-              isDark,
+            StatCard(
+              title: 'Active',
+              value: stats['active'].toString(),
+              icon: TablerIcons.circle_check,
+              color: AppColors.success,
             ),
-            _buildStatCard(
-              'Maintenance',
-              stats['maintenance'].toString(),
-              TablerIcons.tools,
-              AppColors.warning,
-              isDark,
+            StatCard(
+              title: 'Maintenance',
+              value: stats['maintenance'].toString(),
+              icon: TablerIcons.tools,
+              color: AppColors.warning,
             ),
-            _buildStatCard(
-              'Inactive',
-              stats['inactive'].toString(),
-              TablerIcons.circle_x,
-              AppColors.error,
-              isDark,
+            StatCard(
+              title: 'Inactive',
+              value: stats['inactive'].toString(),
+              icon: TablerIcons.circle_x,
+              color: AppColors.error,
             ),
           ],
         );
       },
-    );
-  }
-
-  Widget _buildStatCard(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-    bool isDark,
-  ) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSizes.lg),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withOpacity(isDark ? 0.2 : 0.1),
-                borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(width: AppSizes.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: AppSizes.fontSizeXs,
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: AppSizes.fontSize2xl,
-                      fontWeight: FontWeight.bold,
-                      color: isDark
-                          ? AppColors.textPrimaryDark
-                          : AppColors.textPrimaryLight,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -634,8 +807,6 @@ class _BusManagementScreenState extends State<BusManagementScreen>
                     _buildStatusFilterControl('Status', isDark, busProvider),
                     const SizedBox(height: AppSizes.lg),
                     _buildSearchControl('Search', isDark, busProvider),
-                    const SizedBox(height: AppSizes.lg),
-                    // SizedBox(width: double.infinity, child: _buildAddButton2()),
                   ],
                 );
               }
@@ -649,16 +820,10 @@ class _BusManagementScreenState extends State<BusManagementScreen>
                       busProvider,
                     ),
                   ),
-                  // const SizedBox(width: AppSizes.lg),
-                  // Expanded(
-                  //   child: _buildControl('Search', isDark, busProvider),
-                  // ),
                   const SizedBox(width: AppSizes.lg),
                   Expanded(
                     child: _buildSearchControl('Search', isDark, busProvider),
                   ),
-                  const SizedBox(width: AppSizes.lg),
-                  // _buildAddButton2(),
                 ],
               );
             },
@@ -793,30 +958,6 @@ class _BusManagementScreenState extends State<BusManagementScreen>
       ],
     );
   }
-
-  // Widget _buildAddButton2() {
-  //   return ElevatedButton.icon(
-  //     onPressed: _showAddBusDialog,
-  //     icon: const Icon(TablerIcons.plus, size: 20),
-  //     label: const Text('Add Bus'),
-  //     style: ElevatedButton.styleFrom(
-  //       backgroundColor: const Color(0xFFf97316),
-  //       foregroundColor: Colors.white,
-  //       padding: const EdgeInsets.symmetric(
-  //         horizontal: AppSizes.xl,
-  //         vertical: AppSizes.md + 2,
-  //       ),
-  //       elevation: 0,
-  //       shape: RoundedRectangleBorder(
-  //         borderRadius: BorderRadius.circular(AppSizes.radiusMd),
-  //       ),
-  //       textStyle: const TextStyle(
-  //         fontSize: AppSizes.fontSizeSm,
-  //         fontWeight: FontWeight.w600,
-  //       ),
-  //     ),
-  //   );
-  // }
 
   Widget _buildLoadingState(bool isDark) {
     return Card(
@@ -1226,8 +1367,21 @@ class _BusManagementScreenState extends State<BusManagementScreen>
             ),
           ),
 
-          // STATUS
-          cell(flex: 2, child: _buildStatusBadge(bus.status, isDark)),
+          // STATUS - Now clickable
+          cell(
+            flex: 2,
+            child: InkWell(
+              onTap: () => _handleUpdateStatus(bus),
+              borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Tooltip(
+                  message: 'Click to update status',
+                  child: _buildStatusBadge(bus.status, isDark),
+                ),
+              ),
+            ),
+          ),
 
           // ACTION
           SizedBox(
@@ -1312,6 +1466,16 @@ class _BusManagementScreenState extends State<BusManagementScreen>
           ),
         ),
         PopupMenuItem(
+          value: 'status',
+          child: Row(
+            children: [
+              Icon(TablerIcons.refresh, size: 18, color: AppColors.warning),
+              const SizedBox(width: AppSizes.md),
+              const Text('Update Status'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
           value: 'delete',
           child: Row(
             children: [
@@ -1326,6 +1490,9 @@ class _BusManagementScreenState extends State<BusManagementScreen>
         switch (value) {
           case 'edit':
             _showEditBusDialog(bus);
+            break;
+          case 'status':
+            _handleUpdateStatus(bus);
             break;
           case 'delete':
             _showDeleteConfirmation(bus);
@@ -1376,7 +1543,11 @@ class _BusManagementScreenState extends State<BusManagementScreen>
                     ],
                   ),
                 ),
-                _buildStatusBadge(bus.status, isDark),
+                InkWell(
+                  onTap: () => _handleUpdateStatus(bus),
+                  borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                  child: _buildStatusBadge(bus.status, isDark),
+                ),
               ],
             ),
             const SizedBox(height: AppSizes.lg),

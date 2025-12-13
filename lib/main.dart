@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'app.dart';
 import 'providers/theme_provider.dart';
 import 'providers/navigation_provider.dart';
+import 'shared/product_tour/tour_provider.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/admin/bus_management/bus_provider.dart';
 import 'features/admin/account_management/account_provider.dart';
@@ -24,6 +25,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
+        ChangeNotifierProvider(create: (_) => TourProvider()),
         ChangeNotifierProvider(create: (_) => DashboardAnalyticsProvider()),
         ChangeNotifierProvider(create: (_) => BusProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()),

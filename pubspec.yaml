@@ -41,6 +41,11 @@ dependencies:
   fl_chart: ^1.1.1
   google_maps_flutter: ^2.14.0
   tutorial_coach_mark: ^1.3.3
+  pdf: ^3.11.3
+  csv: ^6.0.0
+  path_provider: ^2.1.5
+  share_plus: ^12.0.1
+  printing: ^5.14.2
 
 dev_dependencies:
   flutter_test:
@@ -55,3 +60,4 @@ flutter:
     - assets/images/logos/light-logo.svg
     - assets/images/logos/dark-logo.svg
     - assets/images/logos/favicon.png
+    - assets/images/buktrack_logo.png
