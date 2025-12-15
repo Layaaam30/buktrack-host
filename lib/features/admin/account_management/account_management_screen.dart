@@ -7,9 +7,12 @@ import '../../auth/auth_provider.dart';
 import 'account_provider.dart';
 import 'account_dialog.dart';
 import 'account_model.dart';
+import 'bus_assignment_dialog.dart';
 
 import '../../../../shared/widgets/common/stat_card.dart';
 import '../../../../shared/widgets/common/confirmation_dialog.dart';
+
+import '../bus_management/bus_provider.dart';
 
 import 'package:tabler_icons/tabler_icons.dart';
 
@@ -52,6 +55,7 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
         context,
         listen: false,
       );
+      final busProvider = Provider.of<BusProvider>(context, listen: false);
 
       final companyId = authProvider.companyId;
       final adminId = authProvider.adminId;
@@ -59,6 +63,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
       if (companyId != null && adminId != null) {
         print('✅ Setting up account provider');
         accountProvider.setCompanyAndAdmin(companyId, adminId);
+
+        print('✅ Setting up bus provider');
+        busProvider.setCompanyAndAdmin(companyId, adminId);
       } else {
         print('❌ ERROR: Company ID or Admin ID not found!');
       }
@@ -235,9 +242,30 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
     }
   }
 
+  Future<void> _handleBusAssignment(Account account) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => BusAssignmentDialog(account: account),
+    );
+
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            account.isAssigned
+                ? 'Bus reassigned successfully'
+                : 'Bus assigned successfully',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    }
+  }
+
   Future<void> _handleUpdateAvailability(Account account) async {
     final availabilityOptions = [
       'available',
+      'standby',
       'in_transit',
       'on_leave',
       'unavailable',
@@ -435,21 +463,121 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
         context,
         listen: false,
       );
-      final success = await accountProvider.updateAvailabilityStatus(
-        account.id,
-        account.role,
-        selected,
-      );
 
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Availability updated successfully'),
-            backgroundColor: AppColors.success,
-          ),
+      try {
+        final success = await accountProvider.updateAvailabilityStatus(
+          account.id,
+          account.role,
+          selected,
         );
+
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Availability updated successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        } else if (!success && mounted) {
+          // Show user-friendly error from provider
+          final errorMessage =
+              accountProvider.error ?? 'Failed to update availability';
+          _showErrorDialog(errorMessage);
+        }
+      } catch (e) {
+        if (mounted) {
+          // Extract user-friendly message from exception
+          String errorMessage = e.toString();
+          if (errorMessage.startsWith('Exception: ')) {
+            errorMessage = errorMessage.substring('Exception: '.length);
+          }
+          _showErrorDialog(errorMessage);
+        }
       }
     }
+  }
+
+  /// Show user-friendly error dialog
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final isDark = theme.brightness == Brightness.dark;
+
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Error Icon
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.error_outline,
+                    color: AppColors.error,
+                    size: 40,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Title
+                Text(
+                  'Cannot Update Status',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Message
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Close Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('OK'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   String _formatAvailability(String status) {
@@ -1404,26 +1532,67 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
           // AVAILABILITY
           cell(
             flex: 2,
-            child: InkWell(
-              onTap: () => _handleUpdateAvailability(account),
-              borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: Tooltip(
-                  message: 'Click to update availability',
-                  child: _buildAvailabilityBadge(
-                    account.availabilityStatus,
-                    isDark,
+            child:
+                account
+                    .isAssigned // ✅ Check if assigned to bus
+                ? MouseRegion(
+                    cursor: SystemMouseCursors.forbidden,
+                    child: Tooltip(
+                      message: account.availabilityStatus == 'in_transit'
+                          ? 'Cannot change status during active trip'
+                          : 'Cannot change status while assigned to bus',
+                      child: Opacity(
+                        opacity: 0.6,
+                        child: _buildAvailabilityBadge(
+                          account.availabilityStatus,
+                          isDark,
+                        ),
+                      ),
+                    ),
+                  )
+                : InkWell(
+                    onTap: () => _handleUpdateAvailability(account),
+                    borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Tooltip(
+                        message: 'Click to update availability',
+                        child: _buildAvailabilityBadge(
+                          account.availabilityStatus,
+                          isDark,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
 
           // ASSIGNED BUS
           cell(
             flex: 2,
-            child: _buildAssignmentBadge(account.isAssigned, isDark),
+            child: account.availabilityStatus == 'in_transit'
+                ? MouseRegion(
+                    cursor: SystemMouseCursors.forbidden,
+                    child: Tooltip(
+                      message: 'Cannot modify assignment during active trip',
+                      child: Opacity(
+                        opacity: 0.6,
+                        child: _buildAssignmentBadge(account, isDark),
+                      ),
+                    ),
+                  )
+                : InkWell(
+                    onTap: () => _handleBusAssignment(account),
+                    borderRadius: BorderRadius.circular(AppSizes.radiusFull),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Tooltip(
+                        message: account.isAssigned
+                            ? 'Click to change bus assignment'
+                            : 'Click to assign to a bus',
+                        child: _buildAssignmentBadge(account, isDark),
+                      ),
+                    ),
+                  ),
           ),
 
           // ACTION
@@ -1501,6 +1670,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
         icon = Icons.check_circle;
         label = 'Available';
         break;
+      case 'standby':
+        bgColor = const Color(0xFFfef3c7); // Light yellow/amber
+        textColor = const Color(0xFFb45309); // Amber-700
+        icon = Icons.timelapse; // Clock/waiting icon
+        label = 'Standby';
+        break;
       case 'in_transit':
         bgColor = const Color(0xFFdbeafe);
         textColor = const Color(0xFF1e40af);
@@ -1550,33 +1725,46 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
     );
   }
 
-  Widget _buildAssignmentBadge(bool isAssigned, bool isDark) {
-    if (isAssigned) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFd1fae5),
-          borderRadius: BorderRadius.circular(AppSizes.radiusFull),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.directions_bus,
-              size: 14,
-              color: Color(0xFF065f46),
+  Widget _buildAssignmentBadge(Account account, bool isDark) {
+    if (account.isAssigned) {
+      return Consumer<BusProvider>(
+        builder: (context, busProvider, child) {
+          // Find the bus this account is assigned to
+          final assignedBus = busProvider.buses.firstWhere(
+            (bus) => bus.id == account.assignedBusId,
+            orElse: () =>
+                busProvider.buses.first, // Fallback (shouldn't happen)
+          );
+
+          final plateNumber = assignedBus.plateNumber;
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFd1fae5),
+              borderRadius: BorderRadius.circular(AppSizes.radiusFull),
             ),
-            const SizedBox(width: 6),
-            Text(
-              'Assigned',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF065f46),
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.directions_bus,
+                  size: 14,
+                  color: Color(0xFF065f46),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  plateNumber.isNotEmpty ? plateNumber : 'Assigned',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF065f46),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
@@ -1598,6 +1786,12 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
   }
 
   Widget _buildActionsMenu(Account account) {
+    final bool isAssigned = account.isAssigned; // Assigned to a bus
+    final bool isInTransit = account.availabilityStatus == 'in_transit';
+    final bool isStandby = account.availabilityStatus == 'standby';
+    final bool canChangeStatus =
+        !isAssigned; // Can only change status when not assigned
+
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert_rounded, size: 20),
       itemBuilder: (context) => [
@@ -1612,34 +1806,91 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
           ),
         ),
         PopupMenuItem(
-          value: 'availability',
-          child: Row(
-            children: [
-              Icon(Icons.calendar_today, size: 18, color: AppColors.success),
-              const SizedBox(width: AppSizes.md),
-              const Text('Update Availability'),
-            ],
+          value: canChangeStatus
+              ? 'availability'
+              : null, // ✅ Disable when assigned
+          enabled: canChangeStatus,
+          child: Tooltip(
+            message: isInTransit
+                ? 'Cannot change status during active trip'
+                : isStandby
+                ? 'Cannot change status while assigned to bus'
+                : 'Update availability status',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_today,
+                  size: 18,
+                  color: canChangeStatus ? AppColors.success : Colors.grey,
+                ),
+                const SizedBox(width: AppSizes.md),
+                Text(
+                  'Update Availability',
+                  style: TextStyle(color: canChangeStatus ? null : Colors.grey),
+                ),
+                if (!canChangeStatus) ...[
+                  const SizedBox(width: AppSizes.sm),
+                  Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                ],
+              ],
+            ),
           ),
         ),
         if (account.isAssigned)
           PopupMenuItem(
-            value: 'unassign',
-            child: Row(
-              children: [
-                Icon(Icons.link_off, size: 18, color: AppColors.warning),
-                const SizedBox(width: AppSizes.md),
-                const Text('Unassign'),
-              ],
+            value: isInTransit ? null : 'unassign', // ✅ Disable when in transit
+            enabled: !isInTransit,
+            child: Tooltip(
+              message: isInTransit
+                  ? 'Cannot unassign during active trip'
+                  : 'Unassign from bus',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.link_off,
+                    size: 18,
+                    color: isInTransit ? Colors.grey : AppColors.warning,
+                  ),
+                  const SizedBox(width: AppSizes.md),
+                  Text(
+                    'Unassign',
+                    style: TextStyle(color: isInTransit ? Colors.grey : null),
+                  ),
+                  if (isInTransit) ...[
+                    const SizedBox(width: AppSizes.sm),
+                    Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                  ],
+                ],
+              ),
             ),
           ),
         PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_rounded, size: 18, color: AppColors.error),
-              const SizedBox(width: AppSizes.md),
-              const Text('Delete'),
-            ],
+          value: isInTransit
+              ? null
+              : 'delete', // ✅ Disable delete during transit too
+          enabled: !isInTransit,
+          child: Tooltip(
+            message: isInTransit
+                ? 'Cannot delete during active trip'
+                : 'Delete account',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.delete_rounded,
+                  size: 18,
+                  color: isInTransit ? Colors.grey : AppColors.error,
+                ),
+                const SizedBox(width: AppSizes.md),
+                Text(
+                  'Delete',
+                  style: TextStyle(color: isInTransit ? Colors.grey : null),
+                ),
+                if (isInTransit) ...[
+                  const SizedBox(width: AppSizes.sm),
+                  Icon(Icons.lock_outline, size: 14, color: Colors.grey),
+                ],
+              ],
+            ),
           ),
         ),
       ],
@@ -1732,10 +1983,31 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _buildAvailabilityBadge(
-                        account.availabilityStatus,
-                        isDark,
-                      ),
+                      account
+                              .isAssigned // ✅ Check if assigned to bus
+                          ? Tooltip(
+                              message:
+                                  account.availabilityStatus == 'in_transit'
+                                  ? 'Cannot change status during active trip'
+                                  : 'Cannot change status while assigned to bus',
+                              child: Opacity(
+                                opacity: 0.6,
+                                child: _buildAvailabilityBadge(
+                                  account.availabilityStatus,
+                                  isDark,
+                                ),
+                              ),
+                            )
+                          : InkWell(
+                              onTap: () => _handleUpdateAvailability(account),
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusFull,
+                              ),
+                              child: _buildAvailabilityBadge(
+                                account.availabilityStatus,
+                                isDark,
+                              ),
+                            ),
                     ],
                   ),
                 ),
@@ -1753,7 +2025,22 @@ class _AccountManagementScreenState extends State<AccountManagementScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      _buildAssignmentBadge(account.isAssigned, isDark),
+                      account.availabilityStatus == 'in_transit'
+                          ? Tooltip(
+                              message:
+                                  'Cannot modify assignment during active trip',
+                              child: Opacity(
+                                opacity: 0.6,
+                                child: _buildAssignmentBadge(account, isDark),
+                              ),
+                            )
+                          : InkWell(
+                              onTap: () => _handleBusAssignment(account),
+                              borderRadius: BorderRadius.circular(
+                                AppSizes.radiusFull,
+                              ),
+                              child: _buildAssignmentBadge(account, isDark),
+                            ),
                     ],
                   ),
                 ),

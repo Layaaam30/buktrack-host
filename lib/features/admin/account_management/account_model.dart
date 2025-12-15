@@ -209,6 +209,8 @@ class Account {
     switch (availabilityStatus) {
       case 'available':
         return 'Available';
+      case 'standby':
+        return 'Standby';
       case 'in_transit':
         return 'In Transit';
       case 'on_leave':

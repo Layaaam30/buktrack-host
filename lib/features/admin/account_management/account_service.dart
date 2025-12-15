@@ -169,6 +169,19 @@ class AccountService {
     try {
       print('🗑️ Deleting account: $accountId');
 
+      // ✅ VALIDATION: Check if account is in transit
+      final accountDoc = await _driverConductorsCollection.doc(accountId).get();
+      if (accountDoc.exists) {
+        final data = accountDoc.data() as Map<String, dynamic>;
+        final status = data['availability_status'] as String?;
+
+        if (status == 'in_transit') {
+          throw Exception(
+            'Cannot delete account while driver/conductor is in transit. Please wait for trip to end.',
+          );
+        }
+      }
+
       await _driverConductorsCollection.doc(accountId).delete();
 
       print('✅ Account deleted successfully');
@@ -186,6 +199,25 @@ class AccountService {
     String adminId,
   ) async {
     try {
+      // ✅ VALIDATION: Check if account is assigned to a bus
+      final accountDoc = await _driverConductorsCollection.doc(accountId).get();
+      if (accountDoc.exists) {
+        final data = accountDoc.data() as Map<String, dynamic>;
+        final currentStatus = data['availability_status'] as String?;
+        final assignedBusId = data['assigned_bus_ID'] as String?;
+
+        // Block status change if assigned to a bus (standby or in_transit)
+        // Only mobile app can change between standby <-> in_transit
+        // Admin can only change status when NOT assigned to a bus
+        if (assignedBusId != null && assignedBusId.isNotEmpty) {
+          if (currentStatus == 'in_transit') {
+            throw Exception('Cannot change status during active trip');
+          } else if (currentStatus == 'standby') {
+            throw Exception('Cannot change status while assigned to bus');
+          }
+        }
+      }
+
       await _driverConductorsCollection.doc(accountId).update({
         'availability_status': status,
         'status_changed_by': adminId,
@@ -194,7 +226,9 @@ class AccountService {
 
       print('✅ Availability status updated to: $status');
     } catch (e) {
-      throw Exception('Failed to update availability status: $e');
+      print('❌ Error updating availability status: $e');
+      // Re-throw the error as-is to preserve user-friendly messages
+      rethrow;
     }
   }
 
@@ -249,17 +283,41 @@ class AccountService {
     String adminId,
   ) async {
     try {
+      // ✅ VALIDATION: Check account status before assignment
+      final accountDoc = await _driverConductorsCollection.doc(accountId).get();
+      if (accountDoc.exists) {
+        final data = accountDoc.data() as Map<String, dynamic>;
+        final status = data['availability_status'] as String?;
+
+        // Only allow assignment if status is "available"
+        if (status != 'available') {
+          if (status == 'in_transit') {
+            throw Exception('Cannot assign bus during active trip');
+          } else if (status == 'standby') {
+            throw Exception(
+              'Already assigned to a bus. Unassign first to change assignment',
+            );
+          } else if (status == 'on_leave') {
+            throw Exception('Cannot assign bus while on leave');
+          } else if (status == 'unavailable') {
+            throw Exception('Cannot assign bus while unavailable');
+          }
+        }
+      }
+
       await _driverConductorsCollection.doc(accountId).update({
         'assigned_bus_ID': busId,
         'assigned_by_admin': adminId,
         'assignment_date': FieldValue.serverTimestamp(),
-        'availability_status': 'in_transit',
+        'availability_status': 'standby', // ✅ Set to standby when assigned
         'updated_at': FieldValue.serverTimestamp(),
       });
 
       print('✅ Account assigned to bus: $busId');
     } catch (e) {
-      throw Exception('Failed to assign to bus: $e');
+      print('❌ Error assigning to bus: $e');
+      // Re-throw to preserve user-friendly messages
+      rethrow;
     }
   }
 
@@ -270,6 +328,19 @@ class AccountService {
     String adminId,
   ) async {
     try {
+      // ✅ VALIDATION: Check if account is in transit
+      final accountDoc = await _driverConductorsCollection.doc(accountId).get();
+      if (accountDoc.exists) {
+        final data = accountDoc.data() as Map<String, dynamic>;
+        final status = data['availability_status'] as String?;
+
+        if (status == 'in_transit') {
+          throw Exception(
+            'Cannot unassign while driver/conductor is in transit. Please wait for trip to end.',
+          );
+        }
+      }
+
       await _driverConductorsCollection.doc(accountId).update({
         'assigned_bus_ID': null,
         'current_route_ID': null,
@@ -281,6 +352,7 @@ class AccountService {
 
       print('✅ Account unassigned from bus');
     } catch (e) {
+      print('❌ Error unassigning from bus: $e');
       throw Exception('Failed to unassign from bus: $e');
     }
   }

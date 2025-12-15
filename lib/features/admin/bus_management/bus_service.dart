@@ -200,6 +200,7 @@ class BusService {
     try {
       await _busesCollection.doc(busId).update({
         'driver_ID': driverId,
+        'status': 'standby', // ✅ Set to standby when driver assigned
         'last_update_timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {
@@ -212,6 +213,7 @@ class BusService {
     try {
       await _busesCollection.doc(busId).update({
         'conductor_ID': conductorId,
+        'status': 'standby', // ✅ Set to standby when conductor assigned
         'last_update_timestamp': FieldValue.serverTimestamp(),
       });
     } catch (e) {

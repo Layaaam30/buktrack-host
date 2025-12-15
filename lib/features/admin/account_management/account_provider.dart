@@ -242,7 +242,12 @@ class AccountProvider with ChangeNotifier {
 
       return true;
     } catch (e) {
-      _error = e.toString();
+      // Clean up error message - remove "Exception: " prefix
+      String errorMessage = e.toString();
+      if (errorMessage.startsWith('Exception: ')) {
+        errorMessage = errorMessage.substring('Exception: '.length);
+      }
+      _error = errorMessage;
       notifyListeners();
       return false;
     }
